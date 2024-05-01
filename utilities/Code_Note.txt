@@ -1,0 +1,6 @@
+When install LHAPDF, use
+'''
+./configure --disable-python
+'''
+
+Move needed pdf files to "LHAPDF_install/share/LHAPDF"
