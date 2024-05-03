@@ -28,7 +28,7 @@ const double CF = 4./3.;
 const double Lambda2 = 0.04;// GeV^2
 const double bmax2 = 2.25;//GeV^-2
 const double HBARC = 0.197327053; // GeV. fm
-const long long int sample_points = 10000;
+const long long int sample_points = 100;
 const long long int sample_points0 = 1000;
 const double R_Nuclear = 6.2;//fm
 const int num_threads = 8;
@@ -96,10 +96,10 @@ int S_Sub(const int *ndim, const cubareal *x, const int *ncomp, cubareal *f, voi
     if (mub > sqrt(helper->Q2)) mub= sqrt(helper->Q2);
     double mu2 = x[0] * (helper->Q2 - mub*mub) + mub*mub;
     //double beta0 = 0.75;//(11. - 2.) / 12.;
-    double as = 4.*M_PI /(0.75 * log(mu2/Lambda2) + 50.);//50: regulator
-    //double as = 0.118;
-    double A = as / M_PI * (CF + CA/2.);
-    double B = -1.5*as /M_PI *CF;
+    //double as = 4.*M_PI /(0.75 * log(mu2/Lambda2) + 50.);//50: regulator
+    double alpha_s = pdf->alphasQ2(mu2);// call from LHAPDF
+    double A = alpha_s / M_PI * (CF + CA/2.);
+    double B = -1.5*alpha_s /M_PI *CF;
     f[0] = (helper->Q2 - mub*mub) * (A*log( helper->Q2 / mu2 ) + B) / mu2;
     return 0;
 }
@@ -109,9 +109,9 @@ int S_Sub_Guass_Leg(double mu2, double Q2){
     //double beta0 = 0.75;//(11. - 2.) / 12.;
     //double as = 4.*M_PI /(0.75 * log(mu2/Lambda2) + 50.);//50: regulator
     
-    double as = 0.118;
-    double A = as / M_PI * (CF + CA/2.);
-    double B = -1.5*as /M_PI *CF;
+    double alpha_s = pdf->alphasQ2(mu2);// call from LHAPDF
+    double A = alpha_s / M_PI * (CF + CA/2.);
+    double B = -1.5*alpha_s /M_PI *CF;
     return (A*log( Q2 / mu2 ) + B) / mu2;
 }
 
@@ -183,17 +183,13 @@ double Wb(double b, double zh, double xp, double Q2){
     //double u, ub, d, db, s, sb, c, bb, gl;
     //fdss_(&is, &ih, &ic, &io, &zh, &mub2, &u, &ub, &d, &db, &s, &sb, &c, &bb, &gl);
 
-    double bWbt = b * 0.02418865082489962 *exp(-SSub - S_nonpert) * (8./9. * FF->xfxQ(2, zh, mub2) * pdf->xfxQ(2,xp, mub2) +
-                  1./9. * FF->xfxQ(1, zh, mub2) * pdf->xfxQ(1,xp, mub2) ); 
-    //double bWbt = b * 0.02418865082489962 * (8./9. * u/zh * pdf->xfxQ(2,xp, mub2) +
-    //              1./9. * d/zh * pdf->xfxQ(1,xp, mub2) ); 
-    //double bWbt = b * 0.02418865082489962 * (8./9. * FF->xfxQ(2, zh, mub2) * pdf->xfxQ(2,xp, mub2) +
-    //              1./9. * FF->xfxQ(1, zh, mub2) * pdf->xfxQ(1,xp, mub2) ); 
-    //bWbt = bWbt * exp( -S_nonpert - SSub[0]); 
-                  
+    double bWbt = b * 0.02418865082489962 *exp(-SSub - S_nonpert) * (8./9. * FF->xfxQ2(2, zh, mub2)/zh * pdf->xfxQ2(2,xp, mub2)/xp +
+                  1./9. * FF->xfxQ2(1, zh, mub2)/zh * pdf->xfxQ2(1,xp, mub2)/xp ); 
+    //double bWbt = b * 0.02418865082489962 * (8./9. * u/zh * pdf->xfxQ2(2,xp, mub2) +
+    //              1./9. * d/zh * pdf->xfxQ2(1,xp, mub2) ); 
+    //double bWbt = b * 0.02418865082489962 * (8./9. * FF->xfxQ2(2, zh, mub2) * pdf->xfxQ2(2,xp, mub2) +
+    //              1./9. * FF->xfxQ2(1, zh, mub2) * pdf->xfxQ2(1,xp, mub2) ); 
                  // 0.0038497433455066264 = 3/8/pi**4; 0.02418865082489962 = 3/8/pi**4 * 2 * pi
-                 if (bWbt < 0 ) cout << "cccccccc " << bWbt << "  " << exp(-SSub - S_nonpert) << "  " << b 
-      << "   " << FF->xfxQ(1, zh, mub2) << "  " <<  FF->xfxQ(2, zh, mub2) << "   " << pdf->xfxQ(2,xp, mub2) << "  " << mub2 << endl;
     return bWbt;
 }
 
@@ -202,7 +198,7 @@ double Wb(double b, double zh, double xp, double Q2){
 int zh_kp2_b_integrated(const int *ndim, const cubareal *x, const int *ncomp, cubareal *f, void *userdata){
     PARAMETERS *helper = (PARAMETERS*)userdata;
     // x0: zh; x1: kp; x2: thetakp; x3 etagamma; x4: etah; x5: kTgamma; x6: PhT; x7: theta_kT
-    double zh = x[0] * 0.9 + 0.05 ;
+    double zh = x[0];
     double kpmag = x[1] * helper->kpmagmax;
     double thetakp = x[2] * 2. * M_PI;
     double etag = x[3] * (helper->etagmax - helper->etagmin) + helper->etagmin;
@@ -218,37 +214,48 @@ int zh_kp2_b_integrated(const int *ndim, const cubareal *x, const int *ncomp, cu
     //double bmag = x[8] * helper->bmax;
     double theta_PhT = theta_kT - helper->Delta_phi;
     double total_volume = (helper->etagmax - helper->etagmin) * (helper->etahmax - helper->etahmin) * (helper->kTgmax - helper->kTgmin) *
-                          (helper->PhTmax - helper->PhTmin) *  2. * M_PI * 2. * M_PI * helper->kpmagmax * 0.9;
+                          (helper->PhTmax - helper->PhTmin) *  2. * M_PI * 2. * M_PI * helper->kpmagmax;
     // sigma^hat
-    //double qdotk = 0.5*exp(-etag-etah) * (exp(etah) - exp(etag)) * (exp(etah) - exp(etag)) * kTg * PhT / zh;
-    //double qdotk = 0.5*kTg * PhT / zh * (exp(etah-etag) + exp(etag-etah)) - kTg * PhT / zh  * cos(helper->Delta_phi);
     double z = exp(etag) * kTg / (exp(etag)* kTg + exp(etah) * PhT / zh);
     double qdotk = 0.5 * kTg * kTg / z/(1.-z);
     double sigmahat = 0.0012165450121654502 * (1. + (1.-z)*(1.-z)) * z / qdotk /kTg/kTg; // 0.0012165450121654502 = 1/137/6
     double kTxdiff = kTg*cos(theta_kT) + PhT * cos(theta_PhT) / zh - kpmag*cos(thetakp);
     double kTydiff = kTg*sin(theta_kT) + PhT * sin(theta_PhT) / zh - kpmag*sin(thetakp);
     double kminuskp_mag = sqrt(pow(kTxdiff, 2) + pow(kTydiff, 2));
-    //double xp = std::max(kTg, PhT/zh) * (exp(-etag) + exp(-etah))/rootsnn;
-    //double xg = std::max(kTg, PhT/zh) * (exp(etag)  + exp(etah))/rootsnn;
-    double xp = (exp(etag) * kTg + exp(etah) * PhT/zh ) / rootsnn;
-    double xg = (exp(-etag) * kTg + exp(-etah) * PhT/zh ) / rootsnn;
-    if (xp > 0.95) xp = 0.95;
-    if (xp < 0.05) xp = 0.05;
-    if (xg > 0.01) xg = 0.01;
+    double xp = std::max(kTg, PhT/zh) * (exp(etag) + exp(etah))/rootsnn;
+    double xg = std::max(kTg, PhT/zh) * (exp(-etag)  + exp(-etah))/rootsnn;
+    //double xp = (exp(etag) * kTg + exp(etah) * PhT/zh ) / rootsnn;
+    //double xg = (exp(-etag) * kTg + exp(-etah) * PhT/zh ) / rootsnn;
+    //if (Q2 > 1.e5) Q2  = 9.999e4;
+    if (xp > 1.0 || xg > 1.) {
+        f[0] = 0.0;
+        return 0;
+    }
     // Use the integration FBT
     double Q2 = rootsnn * rootsnn * xp * xg;
-    if (Q2 > 1.e5) Q2  = 9.999e4;
     if (Q2 < 1.0 ) Q2 = 1.0; 
     FBT ogata0 = FBT(0.0, 0, 3); // Fourier Transform with Jnu, nu=0.0 and N=10
-    //cout << "QQQQQQQQQQQQQQQ " << Q2  << endl;
     double Wk = ogata0.fbt(std::bind(Wb, std::placeholders::_1, zh, xp, Q2), kminuskp_mag);
     //double Wk = Wb(bmag, zh, xp, Q2) *  boost::math::cyl_bessel_j(0, bmag *kminuskp_mag );
     // N tidle // GBW, photon-nucleon
     //double G = 0.25 * pow(0.0003/xg, 0.29); 
-    double rapidity = log(0.01/xg);
-    double G = 0.25 * pow(0.01/xg, 0.29) * exp(0.29 * rapidity); 
-    //if (xp >1.) cout << "Dddddddddddd " <<  G << "  " << xp <<  endl;
-    double Ntidle = exp(-kpmag*kpmag/G*0.25)/G*0.5; // ????
+    double Ntidle;
+    if (xg > 0.01) { // Using the Match
+        double ap =  pdf->xfxQ2(21, xg, 2.55) / (pdf->xfxQ2(21, 0.01, 2.55));
+        double rapidity = log(0.01/0.01);
+        double G = 0.25 * pow(0.01/0.01, 0.29) * exp(0.29 * rapidity); 
+        double Ntidle0 = exp(-kpmag*kpmag/G*0.25)/G*0.5; // ????
+        Ntidle = ap * Ntidle0;
+    } else {
+        // Use the integration FBT
+        // N tidle // GBW, photon-nucleon
+        //double G = 0.25 * pow(0.0003/xg, 0.29); 
+        double rapidity = log(0.01/xg);
+        double G = 0.25 * pow(0.01/xg, 0.29) * exp(0.29 * rapidity); 
+        Ntidle = exp(-kpmag*kpmag/G*0.25)/G*0.5; // ????
+    }
+    
+    
     // integrate the whole function
     double  dsigma_dDeltaphi = 0.025330295910584444 * M_PI * R_Nuclear * R_Nuclear / zh/zh * Wk * pow(kpmag, 3) * Ntidle * sigmahat *
                               kTg * PhT; // Jacobe
@@ -258,9 +265,6 @@ int zh_kp2_b_integrated(const int *ndim, const cubareal *x, const int *ncomp, cu
         cout << "ddddddddd " << dsigma_dDeltaphi << "  " <<  Wk << "  " << sigmahat << "   " << endl;
     }
     f[0] = dsigma_dDeltaphi * total_volume;
-    //cout << "dddd " << Wk << "           " << total_volume << "  " << dsigma_dDeltaphi << " " << Ntidle << " " << G << "  " << 
-    //     sigmahat << "  " << zh << "           " << qdotk << "          " << z <<
-    //     "        " << etag << "            " << etah <<  endl;
     return 0;
 }
 
@@ -316,20 +320,40 @@ int main(int argc, char* argv[]) {
     ofstream realA(output_filename);
     
         // Initialize LHAPDF
-LHAPDF::initPDFSet("JAM20-SIDIS_PDF_proton_nlo");
-// Access PDF set
-pdf = LHAPDF::mkPDF("JAM20-SIDIS_PDF_proton_nlo", 0);
-const LHAPDF::PDFSet set("JAM20-SIDIS_PDF_proton_nlo"); // arxiv: 2101.04664
+    LHAPDF::initPDFSet("JAM20-SIDIS_PDF_proton_nlo");
+    // Access PDF set
+    pdf = LHAPDF::mkPDF("JAM20-SIDIS_PDF_proton_nlo", 0);
+    const LHAPDF::PDFSet set("JAM20-SIDIS_PDF_proton_nlo"); // arxiv: 2101.04664
 
-// Initialize LHAPDF and set the fragmentation function set
-LHAPDF::initPDFSet("JAM20-SIDIS_FF_hadron_nlo");
-FF = LHAPDF::mkPDF("JAM20-SIDIS_FF_hadron_nlo", 0);  // Use the appropriate member index if there are multiple sets
+    // Initialize LHAPDF and set the fragmentation function set
+    LHAPDF::initPDFSet("JAM20-SIDIS_FF_hadron_nlo");
+    FF = LHAPDF::mkPDF("JAM20-SIDIS_FF_hadron_nlo", 0);  // Use the appropriate member index if there are multiple sets
 
-    const int length = 160;
+    int length = 5;
     realA << "# Delta_phi   Wk  sigmahat  Ntidle  dSigma_dDeltaPhi";
     realA << endl;
-    for (int itheta=0; itheta<length +1; itheta++) {
-        params.Delta_phi = itheta * 1. * M_PI / length * 1.; 
+    double detal_theta_step, detal_theta;
+    detal_theta_step = 0.1;
+    for (int itheta=0 ; itheta<length +1; itheta++) {
+        params.Delta_phi = itheta * 1. * detal_theta_step; 
+        realA << params.Delta_phi << "  ";
+                /* Call the integrator */
+                llVegas(ndim, ncomp, zh_kp2_b_integrated, &params, nvec, epsrel, epsabs, flags, seed, mineval, maxeval, nstart, 
+                        nincrease, nbatch, gridno, NULL, NULL, &neval, &fail, integral, error, prob);
+                /* Print the results */
+                //printf("Integral estimate: %e\n", integral[0]);
+                //printf("Error estimate: %e\n", error[0]);
+                //printf("Number of evaluations: %lld\n", neval);
+                //printf("Status flag: %d\n", fail);
+                realA << integral[0] <<  "  ";
+        realA << endl;
+    }
+    detal_theta = params.Delta_phi;
+    length = 15;
+    detal_theta_step = 0.05;
+    for (int itheta=1; itheta<length +1; itheta++) {
+        
+        params.Delta_phi = itheta * 1. * detal_theta_step + detal_theta; 
         realA << params.Delta_phi << "  ";
                 /* Call the integrator */
                 llVegas(ndim, ncomp, zh_kp2_b_integrated, &params, nvec, epsrel, epsabs, flags, seed, mineval, maxeval, nstart, 
@@ -343,6 +367,26 @@ FF = LHAPDF::mkPDF("JAM20-SIDIS_FF_hadron_nlo", 0);  // Use the appropriate memb
         realA << endl;
     }
     
+    detal_theta = params.Delta_phi;
+    length = 50;
+    detal_theta_step = (M_PI - detal_theta) / length;
+    for (int itheta=1; itheta<length +1; itheta++) {
+        params.Delta_phi = itheta * 1. * detal_theta_step + detal_theta; 
+        realA << params.Delta_phi << "  ";
+                /* Call the integrator */
+                llVegas(ndim, ncomp, zh_kp2_b_integrated, &params, nvec, epsrel, epsabs, flags, seed, mineval, maxeval, nstart, 
+                        nincrease, nbatch, gridno, NULL, NULL, &neval, &fail, integral, error, prob);
+                /* Print the results */
+                //printf("Integral estimate: %e\n", integral[0]);
+                //printf("Error estimate: %e\n", error[0]);
+                //printf("Number of evaluations: %lld\n", neval);
+                //printf("Status flag: %d\n", fail);
+                realA << integral[0] <<  "  ";
+        realA << endl;
+    }
+    
+    
     realA.close();
     return 0;
 }
+

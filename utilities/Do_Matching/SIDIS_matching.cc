@@ -28,7 +28,7 @@ const double CF = 4./3.;
 const double Lambda2 = 0.04;// GeV^2
 const double bmax2 = 2.25;//GeV^-2
 const double HBARC = 0.197327053; // GeV. fm
-const long long int sample_points = 20000;
+const long long int sample_points = 2000000;
 const long long int sample_points0 = 10000;
 const double R_Nuclear = 6.2;//fm
 const int num_threads = 6;
@@ -155,7 +155,7 @@ int main(int argc, char* argv[]) {
     realA << "# Q^2   xfxQ2   C_integrate_at_x0";
     realA << endl;
     for (int itheta=100; itheta<length; itheta++) {
-        params.Q2 = itheta * 0.01; 
+        params.Q2 = itheta * 0.05; 
         realA << params.Q2 << "  ";
         /* Call the integrator */
         params.x0 = 0.0098;
