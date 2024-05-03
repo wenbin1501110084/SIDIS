@@ -29,7 +29,7 @@ const double Lambda2 = 0.04;// GeV^2
 const double bmax2 = 2.25;//GeV^-2
 const double HBARC = 0.197327053; // GeV. fm
 const long long int sample_points = 20000;
-const long long int sample_points0 = 1000;
+const long long int sample_points0 = 10000;
 const double R_Nuclear = 6.2;//fm
 const int num_threads = 6;
 const double rootsnn = 200.;// GeV
@@ -79,6 +79,8 @@ struct PARAMETERS {
     double PhTmax;// GeV
     double PhTmin;// GeV
     double Delta_phi;// GeV
+    double Rp2;
+    double x0;
 };
 
 extern "C"
@@ -86,89 +88,11 @@ extern "C"
 double fdss_(int *is, int *ih, int *ic, int *io, double *x, double *Q2, double *u, double *ub, double *d, double *db, double *s, double *sb, double *c, double *b, double *gl);
 }
 
-int S_Sub(const int *ndim, const cubareal *x, const int *ncomp, cubareal *f, void *userdata){
-    PARAMETERS *helper = (PARAMETERS*)userdata;
-    // x0: mu2
-    double bstar = helper->b / sqrt(1. + helper->b * helper->b / bmax2);
-    double mub = 1.1224972160321824/bstar;//1.1224972160321824 = 2exp(-gammaE)
-    if (mub > sqrt(helper->Q2)) mub= sqrt(helper->Q2);
-    double mu2 = x[0] * (helper->Q2 - mub*mub) + mub*mub;
-    double beta0 = 0.75;//(11. - 2.) / 12.;
-    double as = 4.*M_PI /(beta0 * log(mu2/Lambda2) + 50.);
-    double A = as / M_PI * (CF + CA/2.);
-    double B = -1.5*as /M_PI *CF;
-    f[0] = (helper->Q2 - mub*mub) * (A*log( helper->Q2 / mu2 ) + B) / mu2;
-    return 0;
-}
-
-/* Define the W(b) function, use the FBT method */
-double Wb(double b, double zh, double xp, double Q2){
-    
-    /* Define the integration parameters */
-//    omp_set_num_threads(num_threads);
-//    const int ndim2 = 1; /* number of dimensions */
-//    const int ncomp2 = 1; /* number of components */
-//    const long long int mineval = sample_points0; /* minimum number of integrand evaluations */
-//    const long long int nvec = 1; /* minimum number of integrand evaluations */
-//    const cubareal epsrel = 1e-3; /* relative error tolerance */
-//    const cubareal epsabs = 1e-3; /* absolute error tolerance */
-//    //const int verbose = 0; /* verbosity level */
-//    const long long int maxeval = sample_points0; /* maximum number of integrand evaluations */
-//    const long long int nstart = sample_points0;
-//    const long long int nincrease = sample_points0;
-//    const long long int nbatch = sample_points0;
-//    const int gridno = 0;
-//    const int flags = 0; 
-//    const int seed = 0; 
-//    /* Allocate memory for the results */
-//    long long int neval; /* number of integrand evaluations */
-//    int fail; /* status flag */
-//    cubareal SSub[ncomp2]; /* integral estimates */
-//    cubareal error[ncomp2]; /* error estimates */
-//    cubareal prob[ncomp2]; /* CHI^2 probabilities */
-//    
-//    PARAMETERS params;
-//    params.b = b;
-//    params.Q2 = Q2;
-//    
-//    llVegas(ndim2, ncomp2, S_Sub, &params, nvec, epsrel, epsabs, flags, seed, mineval, maxeval, nstart, nincrease, nbatch,
-//                    gridno, NULL, NULL, &neval, &fail, SSub, error, prob);
-//    double S_nonpert = 0.212 * b*b + 0.21*log(Q2 / 2.4) * log(1. + b * b/bmax2);
-    
-    double bstar = b / sqrt(1. + b * b / bmax2); // GeV^-1
-    double mub = 1.1224972160321824/bstar;//1.1224972160321824 = 2exp(-gammaE)
-    
-    // Evaluate the fragmentation function at the specified parameters
-    double mub2 = mub * mub;
-    if (mub2 > Q2) mub2= Q2;
-    if (mub2 < 1.0) mub2 = 1.0;
-    // Fragmentation functon
-    //int is=1, ih=4, ic=0, io=1;
-    //double u, ub, d, db, s, sb, c, bb, gl;
-    //fdss_(&is, &ih, &ic, &io, &zh, &mub2, &u, &ub, &d, &db, &s, &sb, &c, &bb, &gl);
-
-    //double bWbt = b * 0.02418865082489962 *exp(-SSub[0] - S_nonpert) * (8./9. * FF->xfxQ(2, zh, mub2) * pdf->xfxQ(2,xp, mub2) +
-    //              1./9. * FF->xfxQ(1, zh, mub2) * pdf->xfxQ(1,xp, mub2) ); 
-    //double bWbt = b * 0.02418865082489962 * (8./9. * u/zh * pdf->xfxQ(2,xp, mub2) +
-    //              1./9. * d/zh * pdf->xfxQ(1,xp, mub2) ); 
-    double bWbt = b * 0.02418865082489962 * (8./9. * FF->xfxQ(2, zh, mub2) * pdf->xfxQ(2,xp, mub2) +
-                  1./9. * FF->xfxQ(1, zh, mub2) * pdf->xfxQ(1,xp, mub2) ); 
-    //bWbt = bWbt * exp( -1.*S_nonpert - SSub[0]); 
-                  
-                 // 0.0038497433455066264 = 3/8/pi**4; 0.02418865082489962 = 3/8/pi**4 * 2 * pi
-    //             if (bWbt < 0 ) cout << "cccccccc " << bWbt << "  " << exp(-SSub[0] - S_nonpert) << "  " << b 
-    //  << "   " << FF->xfxQ(1, zh, mub2) << "  " <<  FF->xfxQ(2, zh, mub2) << "   " << pdf->xfxQ(2,xp, mub2) << "  " << mub2 << endl;
-    return bWbt;
-}
-
-
 
 int zh_kp2_b_integrated(const int *ndim, const cubareal *x, const int *ncomp, cubareal *f, void *userdata){
     PARAMETERS *helper = (PARAMETERS*)userdata;
     // x0: zh; x1: kp; x2: thetakp; x3 etagamma; x4: etah; x5: kTgamma; x6: PhT; x7: theta_kT
-    double zh = x[0] * 0.9 + 0.05 ;
-    //double kpmag = x[1] * helper->kpmagmax;
-    //double thetakp = x[2] * 2. * M_PI;
+    double zh = x[0] * 1.0 ;
     double etag = x[1] * (helper->etagmax - helper->etagmin) + helper->etagmin;
     double etah = x[2] * (helper->etahmax - helper->etahmin) + helper->etahmin;
     double kTg  = x[3] * (helper->kTgmax - helper->kTgmin)   + helper->kTgmin;
@@ -178,55 +102,59 @@ int zh_kp2_b_integrated(const int *ndim, const cubareal *x, const int *ncomp, cu
         f[0] = 0.0;
         return 0;
     }
+    double xp = std::max(kTg, PhT/zh) * (exp(etag) + exp(etah))/rootsnn;
+    double xg = std::max(kTg, PhT/zh) * (exp(-etag)  + exp(-etah))/rootsnn;
+    double Q2 = rootsnn * rootsnn * xp * xg;
+    //if (Q2 > 1.e5) Q2  = 9.999e4;
+    if (Q2 < 1.0 ) Q2 = 1.0; 
+    if (xp > 1.0 || xg > 1.) {
+        f[0] = 0.0;
+        return 0;
+    }
+    
     double theta_kT = x[5] * 2. * M_PI;
     double theta_PhT = theta_kT - helper->Delta_phi;
     double total_volume = (helper->etagmax - helper->etagmin) * (helper->etahmax - helper->etahmin) * (helper->kTgmax - helper->kTgmin) *
-                          (helper->PhTmax - helper->PhTmin) *  2. * M_PI * 0.95;
+                          (helper->PhTmax - helper->PhTmin) *  2. * M_PI * 1.0;
     // sigma^hat
-    //double qdotk = 0.5*exp(-etag-etah) * (exp(etah) - exp(etag)) * (exp(etah) - exp(etag)) * kTg * PhT / zh;
-    //double qdotk = 0.5*kTg * PhT / zh * (exp(etah-etag) + exp(etag-etah)) - kTg * PhT / zh  * cos(helper->Delta_phi);
     double z = exp(etag) * kTg / (exp(etag)* kTg + exp(etah) * PhT / zh);
     double qdotk = 0.5 * kTg * kTg / z/(1.-z);
     double sigmahat = 0.0012165450121654502 * (1. + (1.-z)*(1.-z)) * z / qdotk /kTg/kTg; // 0.0012165450121654502 = 1/137/6
-    //double xp = std::max(kTg, PhT/zh) * (exp(-etag) + exp(-etah))/rootsnn;
-    //double xg = std::max(kTg, PhT/zh) * (exp(etag)  + exp(etah))/rootsnn;
-    double xp = (exp(etag) * kTg + exp(etah) * PhT/zh ) / rootsnn;
-    double xg = (exp(-etag) * kTg + exp(-etah) * PhT/zh ) / rootsnn;
+    
+    //double xp = (exp(etag) * kTg + exp(etah) * PhT/zh ) / rootsnn;
+    //double xg = (exp(-etag) * kTg + exp(-etah) * PhT/zh ) / rootsnn;
     double kTxdiff = kTg*cos(theta_kT) + PhT * cos(theta_PhT) / zh;
     double kTydiff = kTg*sin(theta_kT) + PhT * sin(theta_PhT) / zh;
     double kpmag = sqrt(pow(kTxdiff, 2) + pow(kTydiff, 2));
-    
-    if (xp > 0.95) xp = 0.95;
-    if (xp < 0.05) xp = 0.05;
-    if (xg > 0.01) xg = 0.01;
-    // Use the integration FBT
-    double Q2 = rootsnn * rootsnn * xp * xg;
-    if (Q2 > 1.e5) Q2  = 9.999e4;
-    if (Q2 < 1.0 ) Q2 = 1.0; 
-    // N tidle // GBW, photon-nucleon
-    //double G = 0.25 * pow(0.0003/xg, 0.29); 
-    double rapidity = log(0.01/xg);
-    double G = 0.25 * pow(0.01/xg, 0.29) * exp(0.29 * rapidity); 
-    //if (xp >1.) cout << "Dddddddddddd " <<  G << "  " << xp <<  endl;
-    double Ntidle = exp(-kpmag*kpmag/G*0.25)/G*0.5; // ????
+    double Ntidle;
+    if (xg > 0.01) { // Using the Match
+        double ap =  pdf->xfxQ2(21, xg, 2.55) / (pdf->xfxQ2(21, 0.01, 2.55));
+        double rapidity = log(0.01/0.01);
+        double G = 0.25 * pow(0.01/0.01, 0.29) * exp(0.29 * rapidity); 
+        double Ntidle0 = exp(-kpmag*kpmag/G*0.25)/G*0.5; // ????
+        Ntidle = ap * Ntidle0;
+    } else {
+        // Use the integration FBT
+        // N tidle // GBW, photon-nucleon
+        //double G = 0.25 * pow(0.0003/xg, 0.29); 
+        double rapidity = log(0.01/xg);
+        double G = 0.25 * pow(0.01/xg, 0.29) * exp(0.29 * rapidity); 
+        Ntidle = exp(-kpmag*kpmag/G*0.25)/G*0.5; // ????
+    }
     // integrate the whole function
     // Fragmentation functon
     //int is=1, ih=4, ic=0, io=1;
     //double u, ub, d, db, s, sb, c, bb, gl;
     //fdss_(&is, &ih, &ic, &io, &zh, &Q2, &u, &ub, &d, &db, &s, &sb, &c, &bb, &gl);
-    double Wk = 0.0038497433455066264 * (8./9. * FF->xfxQ(2, zh, Q2) * xp * pdf->xfxQ(2,xp, Q2) +
-                  1./9. * FF->xfxQ(1, zh, Q2) * xp*pdf->xfxQ(1,xp, Q2) ); 
-   // double Wk = 0.0038497433455066264 * (8./9. * u/zh * xp * pdf->xfxQ(2,xp, Q2) +
-   //               1./9. * d/zh * xp*pdf->xfxQ(1,xp, Q2) ); 
+    double Wk = 0.0038497433455066264 * (8./9. * FF->xfxQ2(2, zh, Q2)/zh *  pdf->xfxQ2(2,xp, Q2) +
+                  1./9. * FF->xfxQ2(1, zh, Q2)/zh * pdf->xfxQ2(1,xp, Q2) ); 
+   // double Wk = 0.0038497433455066264 * (8./9. * u/zh * xp * pdf->xfxQ2(2,xp, Q2) +
+   //               1./9. * d/zh * xp*pdf->xfxQ2(1,xp, Q2) ); 
                   // 0.0038497433455066264 = 3/8/pi**4; 0.02418865082489962 = 3/8/pi**4 * 2 * pi
     double  dsigma_dDeltaphi = 0.025330295910584444 * M_PI * R_Nuclear * R_Nuclear / zh/zh * Wk * pow(kpmag, 2) * Ntidle * sigmahat *
                               kTg * PhT; // Jacobe
                               //0.025330295910584444 = 1/(2pi)^2
-    if (dsigma_dDeltaphi < 0.0) cout << "ddddddddd " << dsigma_dDeltaphi << "  " <<  Wk << "  " << FF->xfxQ(1, zh, Q2) << "   " << sigmahat << "   " << endl;
     f[0] = dsigma_dDeltaphi * total_volume;
-    //cout << "dddd " << Wk << "           " << total_volume << "  " << dsigma_dDeltaphi << " " << Ntidle << " " << G << "  " << 
-    //     sigmahat << "  " << zh << "           " << qdotk << "          " << z <<
-    //     "        " << etag << "            " << etah <<  endl;
     return 0;
 }
 
@@ -248,7 +176,17 @@ int main(int argc, char* argv[]) {
     params.kTgmin    = 5.;
     params.PhTmax    = 1.;
     params.PhTmin    = 0.5;
+    
+    // Initialize LHAPDF
+    LHAPDF::initPDFSet("JAM20-SIDIS_PDF_proton_nlo");
+    // Access PDF set
+    pdf = LHAPDF::mkPDF("JAM20-SIDIS_PDF_proton_nlo", 0);
+    const LHAPDF::PDFSet set("JAM20-SIDIS_PDF_proton_nlo"); // arxiv: 2101.04664
 
+    // Initialize LHAPDF and set the fragmentation function set
+    LHAPDF::initPDFSet("JAM20-SIDIS_FF_hadron_nlo");
+    FF = LHAPDF::mkPDF("JAM20-SIDIS_FF_hadron_nlo", 0);  // Use the appropriate member index if there are multiple sets
+    
     /* Define the integration parameters */
     const int ndim = 6; /* number of dimensions */
     const int ncomp = 1; /* number of components */
@@ -280,16 +218,6 @@ int main(int argc, char* argv[]) {
     sprintf(output_filename,"dSigma_dDeltaPhi_without_Sub");
     ofstream realA(output_filename);
     
-        // Initialize LHAPDF
-LHAPDF::initPDFSet("JAM20-SIDIS_PDF_proton_nlo");
-// Access PDF set
-pdf = LHAPDF::mkPDF("JAM20-SIDIS_PDF_proton_nlo", 0);
-const LHAPDF::PDFSet set("JAM20-SIDIS_PDF_proton_nlo"); // arxiv: 2101.04664
-
-// Initialize LHAPDF and set the fragmentation function set
-LHAPDF::initPDFSet("JAM20-SIDIS_FF_hadron_nlo");
-FF = LHAPDF::mkPDF("JAM20-SIDIS_FF_hadron_nlo", 0);  // Use the appropriate member index if there are multiple sets
-
     const int length = 160;
     realA << "# Delta_phi   Wk  sigmahat  Ntidle  dSigma_dDeltaPhi";
     realA << endl;
