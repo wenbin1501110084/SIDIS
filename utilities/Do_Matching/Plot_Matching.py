@@ -12,11 +12,12 @@ HBARC = 0.197327053
 from scipy.integrate import simps
 from math import *
 pl.figure(1002)
-
+xm1 = 0.0098
 x0 = 0.01
+x1 = 0.0102
 aa = np.loadtxt("Matching_output")
 
-diff = aa[:,3] / x0  + x0 * (aa[:,5]/0.0102 - aa[:,1]/0.0098)/(0.0102 - 0.0098)
+diff =   (aa[:,5] - aa[:,1])/( x1- xm1)
 
 pl.plot(aa[:,0],diff,'r',label='LHAPDF, x0')
 
@@ -25,6 +26,7 @@ for ii in range(1, len(aa[:,0])):
     if (diff[ii] < 0.0):
         print("Q0 ^2 in [GeV^2] = ", aa[ii,0])
         math_index = ii
+        #math_index = int(2.1541 * 2.1541 / 0.01 -100)
         break
 
 print("Rp in fm =  ", (aa[math_index,3] / aa[math_index,4] *HBARC * HBARC)**0.5)

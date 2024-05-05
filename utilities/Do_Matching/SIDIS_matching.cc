@@ -28,12 +28,13 @@ const double CF = 4./3.;
 const double Lambda2 = 0.04;// GeV^2
 const double bmax2 = 2.25;//GeV^-2
 const double HBARC = 0.197327053; // GeV. fm
-const long long int sample_points = 2000000;
+const long long int sample_points = 200000;
 const long long int sample_points0 = 10000;
 const double R_Nuclear = 6.2;//fm
 const int num_threads = 6;
 const double rootsnn = 200.;// GeV
 const double Rcut = 0.3;
+const int dipole_model = 1; //1: rcBK; 0: GBW
 LHAPDF::PDF* FF;
 LHAPDF::PDF* pdf;
 
@@ -89,14 +90,29 @@ int matching(const int *ndim, const cubareal *x, const int *ncomp, cubareal *f, 
     PARAMETERS *helper = (PARAMETERS*)userdata;
     // x0: kT2;
     double kT2 = x[0] * helper->Q2;
-    double alpha_s = pdf->alphasQ2( helper->Q2);// call from LHAPDF
+    double alpha_s = pdf->alphasQ2( kT2);// call from LHAPDF
     double C =  helper->Rp2 *3. / 16. / M_PI / M_PI / alpha_s;// Rp in GeV^-1
     // N tidle // GBW, photon-nucleon
-    //double G = 0.25 * pow(0.0003/xg, 0.29);
-    double xg = 0.01; // Matching point 
-    double rapidity = log(helper->x0/xg);
-    double G = 0.25 * pow(helper->x0/xg, 0.29) * exp(0.29 * rapidity); 
-    double Ntidle = exp(-kT2/G*0.25)/G*0.5; // ????
+    double Ntidle;
+    if (dipole_model == 0 ) {
+        //double G = 0.25 * pow(0.0003/xg, 0.29);
+        double xg = 0.01; // Matching point 
+        double rapidity = log(helper->x0/xg);
+        double G = 0.25 * pow(helper->x0/xg, 0.29) * exp(0.29 * rapidity); 
+        Ntidle = exp(-kT2/G*0.25)/G*0.5; // ????
+    } else {
+        if (dipole_model == 1 ) {
+            double Am = 3.995189967514155782e+00;
+            double Bm =  2.031462982535007011e+00/2.;
+            double Cm =  4.273606519780273949e+00;
+            double Dm =  4.415365535915241502e+00;
+            double Em = 1.083775271617884867e-01;
+            double Fm =  2.313193722087994786e+00;
+            
+            Ntidle = Am * exp(-1. * pow(kT2, Bm) * Cm + Dm) + Em * pow(kT2, Fm); //A * exp(-k**B * C + D) + E*k**F
+        }
+    }
+    
     f[0] = C * Ntidle * kT2 * helper->Q2;
     return 0;
 }
@@ -136,10 +152,10 @@ int main(int argc, char* argv[]) {
     cubareal prob[ncomp]; /* CHI^2 probabilities */
     
     // Initialize LHAPDF
-    LHAPDF::initPDFSet("JAM20-SIDIS_PDF_proton_nlo");
+    LHAPDF::initPDFSet("cteq66");
     // Access PDF set
-    pdf = LHAPDF::mkPDF("JAM20-SIDIS_PDF_proton_nlo", 0);
-    const LHAPDF::PDFSet set("JAM20-SIDIS_PDF_proton_nlo"); // arxiv: 2101.04664
+    pdf = LHAPDF::mkPDF("cteq66", 0);
+    const LHAPDF::PDFSet set("cteq66"); // arxiv: 2101.04664
 
     // Initialize LHAPDF and set the fragmentation function set
     LHAPDF::initPDFSet("JAM20-SIDIS_FF_hadron_nlo");
@@ -151,11 +167,11 @@ int main(int argc, char* argv[]) {
     sprintf(output_filename,"Matching_output");
     ofstream realA(output_filename);
     
-    const int length = 1000;
+    const int length = 2000;
     realA << "# Q^2   xfxQ2   C_integrate_at_x0";
     realA << endl;
     for (int itheta=100; itheta<length; itheta++) {
-        params.Q2 = itheta * 0.05; 
+        params.Q2 = itheta * 0.01; 
         realA << params.Q2 << "  ";
         /* Call the integrator */
         params.x0 = 0.0098;

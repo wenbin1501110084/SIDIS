@@ -1,4 +1,4 @@
-Here are two tables with slightly different initial conditions. The first column is Y=ln(0.01/x) and the second column is the dipole size and the third column is T = 1-1/Nc*\Tr[V(x)V^\dagger(y)], so the N in Sanjin's paper is computed by N= 1 -T. That rcBK table is for the proton. I currently don't have one of the nucleus, but we could generate one later.
+Here are two tables with slightly different initial conditions. The first column is Y=ln(0.01/x) and the second column is the dipole size [GeV^-1] and the third column is T = 1-1/Nc*\Tr[V(x)V^\dagger(y)], so the N in Sanjin's paper is computed by N= 1 -T. That rcBK table is for the proton. I currently don't have one of the nucleus, but we could generate one later.
 For the nucleus you can use the following approximation
 N_A = (N_p)^ c
 where N_A is the dipole for the nucleus, and N_p is the dipole for the proton, and c is the proportionality factor between saturation scales squared, so you can take c ~ 2 or 3
