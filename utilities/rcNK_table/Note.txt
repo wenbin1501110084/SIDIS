@@ -2,3 +2,12 @@ Here are two tables with slightly different initial conditions. The first column
 For the nucleus you can use the following approximation
 N_A = (N_p)^ c
 where N_A is the dipole for the nucleus, and N_p is the dipole for the proton, and c is the proportionality factor between saturation scales squared, so you can take c ~ 2 or 3
+
+When Fit the rcBK table:
+For All_fit_paras_log_2_5_final_fit_rcBK_MV_Heikki_table, the fit function is:
+    tidle0 = AValues[0] * ( -1. * pow(kpmag, BValues[0]) * CValues[0] + DValues[0]) +
+                          EValues[0] * pow(kpmag, FValues[0]);
+                          
+For All_fit_paras_log_2_5_final_fit_rcBK_MVgamma_Heikki_table, the fit function is:
+def model_func2d(k, A, B, C, D, E, F):
+    return  log(A * exp(-k**B * C + D) + E*k**F)

@@ -190,6 +190,8 @@ double Wb(double b, double zh, double xp, double Q2){
     double Lambda2 = 0.0542;//GeV^2  to fit the JAM20 PDF
     double A = 0.899;
     double B = -0.631;// A and B are values of the Sudakov only
+    // A = 0.899, B =-0.631 for B = 2Bq; 
+    // A = 0.897, B = -1.341 for B = 2Bq +Bg;
     double SSub = 1./ beta * ( -1.*A *log(Q2/mub2) + (B + A*log(Q2/Lambda2)) * log( (log(Q2/Lambda2)) / (log(mub2/Lambda2)) ) );
     double S_nonpert = 0.212 * b*b + 0.21*log(Q2 / 2.4) * log(1. + b * b/bmax2);
     
@@ -358,16 +360,22 @@ int main(int argc, char* argv[]) {
     int startid = std::stoi(argv[1]);
     int endid = std::stoi(argv[2]);
     int stage = std::stoi(argv[3]);
+    double kgTmin = std::stod(argv[4]);
+    double kgTmax = std::stod(argv[5]);
+    double phTmin = std::stod(argv[6]);
+    double phTmax = std::stod(argv[7]); // Convert the 5th command-line argument to a double
+
+
 
     params.etagmax    = 0.35;
     params.etagmin    = -0.35;
-    params.kpmagmax    = 9.0;///////////////////
+    params.kpmagmax    = 20.0;///////////////////
     params.etahmax    = 0.35;
     params.etahmin    = -0.35;
-    params.kTgmax    = 7.;
-    params.kTgmin    = 5.;
-    params.PhTmax    = 1.;
-    params.PhTmin    = 0.5;
+    params.kTgmax    = kgTmax;
+    params.kTgmin    = kgTmin;
+    params.PhTmax    = phTmax;
+    params.PhTmin    = phTmin;
     params.bmax      = 5.;// GeV^-1
 
     // Read in Fitted parameters
@@ -443,7 +451,8 @@ int main(int argc, char* argv[]) {
     //output the results to file
     //char output_filename[128];
     std::stringstream filename;
-    filename << "dSigma_dDeltaPhi_with_Sub_FBT_" << startid << "_" << endid << "_" <<  stage <<".txt";
+    filename << "dSigma_dDeltaPhi_with_Sub_FBT_" << startid << "_" << endid << "_" <<  stage 
+             << "_"<< kgTmin << "_" << kgTmax << "_" << phTmin << "_" << phTmax <<".txt";
 
     //sprintf(output_filename,"dSigma_dDeltaPhi_with_Sub_FBT");
     //std::ofstream outputFile(filename.str());
@@ -462,12 +471,12 @@ int main(int argc, char* argv[]) {
     int length;
     double detal_theta; double detal_theta_step;
     if (stage == 0) {
-    length = 5;
+    length = 6;
     realA << "# Delta_phi   Wk  sigmahat  Ntidle  dSigma_dDeltaPhi";
     realA << endl;
     
     detal_theta_step = 0.1;
-    for (int itheta=0 ; itheta<length +1; itheta++) {
+    for (int itheta=startid ; itheta<endid; itheta++) {
         params.Delta_phi = itheta * 1. * detal_theta_step; 
         realA << params.Delta_phi << "  ";
                 /* Call the integrator */
@@ -525,5 +534,4 @@ int main(int argc, char* argv[]) {
     realA.close();
     return 0;
 }
-
 
