@@ -207,25 +207,36 @@ int zh_kp2_b_integrated(const int *ndim, const cubareal *x, const int *ncomp, cu
             double Ntidle1 = 0;
             double Ntidle2 = 0;
             if ( kpmag < 9.9) {
-                double xValues3[Klength], yValues3[Klength];
+                std::vector<double> xValues3, yValues3;
+                xValues3.clear(); yValues3.clear();
                 for (int inn= y_index * Klength; inn <  y_index * Klength + Klength; inn++) {
-                    xValues3[inn] = (KValues[inn]);
-                    yValues3[inn] = (NrValues[inn]);
+                    xValues3.push_back(KValues[inn]);
+                    yValues3.push_back(NrValues[inn]);
+                
                 }
-            
                 gsl_interp *interp = gsl_interp_alloc(gsl_interp_linear, Klength);
-                gsl_interp_init(interp, xValues3, yValues3, Klength);
-                Ntidle1 = gsl_interp_eval(interp, xValues3, yValues3, kpmag, nullptr);
+                gsl_interp_init(interp, xValues3.data(), yValues3.data(), Klength);
+                Ntidle1 = gsl_interp_eval(interp, xValues3.data(), yValues3.data(), kpmag, nullptr);
                 gsl_interp_free(interp);
+                /////
                 int y_index2 = y_index +1;
-                double xValues2[Klength], yValues2[Klength];
+                std::vector<double> xValues2, yValues2;
+                xValues2.clear(); yValues2.clear();
+                /*
                 for (int inn= y_index2 * Klength; inn <  y_index2 * Klength + Klength; inn++) {
                     xValues2[inn] =(KValues[inn]);
                     yValues2[inn] =(NrValues[inn]);
                 }
+                */
+                for (int inn= y_index2 * Klength; inn <  y_index2 * Klength + Klength; inn++) {
+                    xValues2.push_back(KValues[inn]);
+                    yValues2.push_back(NrValues[inn]);
+                
+                }
+                
                 gsl_interp *interp2 = gsl_interp_alloc(gsl_interp_linear, Klength);
-                gsl_interp_init(interp2, xValues2, yValues2, Klength);
-                Ntidle2 = gsl_interp_eval(interp2, xValues2, yValues2, kpmag, nullptr);
+                gsl_interp_init(interp2, xValues2.data(), yValues2.data(), Klength);
+                Ntidle2 = gsl_interp_eval(interp2, xValues2.data(), yValues2.data(), kpmag, nullptr);
                 gsl_interp_free(interp2);
             }
             if ( kpmag >= 9.9) {
