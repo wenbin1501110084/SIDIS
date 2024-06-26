@@ -28,15 +28,15 @@ const double CF = 4./3.;
 const double Lambda2 = 0.04;// GeV^2
 const double bmax2 = 2.25;//GeV^-2
 const double HBARC = 0.197327053; // GeV. fm
-const long long int sample_points = 100000;
+const long long int sample_points = 500000;
 const long long int sample_points0 = 1000;
 const double R_Nuclear = 6.2;//fm
 const int num_threads = 10;
 const double rootsnn = 200.;// GeV
-const double Rcut = 0.3;
+const double Rcut = 0.7;
 const int dipole_model = 1; //1: rcBK; 0: GBW
 const double Y_step = 0.2;
-const int Klength = 500;
+const int Klength = 700;
 std::vector<double> AValues, BValues, CValues, DValues, EValues, FValues, YValues_para;
 //std::vector<double> KValues, NrValues;
 double KValues[100000] = {0.0}; 
@@ -182,6 +182,10 @@ double Wb(double b, double zh, double xp, double Q2){
     double mub = 1.1224972160321824/bstar;//1.1224972160321824 = 2exp(-gammaE)
     // Evaluate the fragmentation function at the specified parameters
     double mub2 = mub * mub;
+    if (std::isnan(mub2)) {
+        mub2 = Q2;
+        std::cout << "Warning: myValue is NaN " << bstar << "  " << b << std::endl;
+    } 
     if (mub2 > Q2) mub2= Q2;
     if (mub2 < 1.0) mub2 = 1.0;
 
@@ -253,7 +257,7 @@ int zh_kp2_b_integrated(const int *ndim, const cubareal *x, const int *ncomp, cu
     // Use the integration FBT
     double Q2 = rootsnn * rootsnn * xp * xg;
     if (Q2 < 1.0 ) Q2 = 1.0; 
-    FBT ogata0 = FBT(0.0, 0, 3); // Fourier Transform with Jnu, nu=0.0 and N=10
+    FBT ogata0 = FBT(0.0, 0, 500); // Fourier Transform with Jnu, nu=0.0 and N=10
     double Wk = ogata0.fbt(std::bind(Wb, std::placeholders::_1, zh, xp, Q2), kminuskp_mag);
     //double Wk = Wb(bmag, zh, xp, Q2) *  boost::math::cyl_bessel_j(0, bmag *kminuskp_mag );
     // N tidle // GBW, photon-nucleon
@@ -282,16 +286,15 @@ int zh_kp2_b_integrated(const int *ndim, const cubareal *x, const int *ncomp, cu
                 gsl_interp_free(interp);
             }
             if (kpmag >= 9.9) {
-                Ntidle0 = log( AValues[0] * exp(-1.*pow(kpmag, BValues[0]) * CValues[0] + DValues[0]) +
-                               EValues[0] * pow(kpmag, FValues[0])
-                             );
+                Ntidle0 =  AValues[0] * exp(-1.*pow(kpmag, BValues[0]) * CValues[0] + DValues[0]) +
+                               EValues[0] * pow(kpmag, FValues[0]);
                 Ntidle0 = exp(Ntidle0)/kpmag/kpmag; // Fit the log(data*k*k)
             }
         }
         Ntidle = ap * Ntidle0;
     } else {
         double rapidity = log(0.01/xg);
-        if (rapidity > 15.0) rapidity = 15.;
+        if (rapidity > 16.0) rapidity = 16.;
         if (dipole_model == 0) {
             double G = 0.25 * pow(0.01/xg, 0.29) * exp(0.29 * rapidity); 
             Ntidle = exp(-kpmag*kpmag/G*0.25)/G*0.5; // ????
@@ -300,7 +303,7 @@ int zh_kp2_b_integrated(const int *ndim, const cubareal *x, const int *ncomp, cu
             int y_index = int(rapidity/Y_step);
             double Ntidle1 = 0;
             double Ntidle2 = 0;
-            if ( kpmag < 9.9) {
+            if ( kpmag < 10.) {
                 std::vector<double> xValues3, yValues3;
                 xValues3.clear(); yValues3.clear();
                 for (int inn= y_index * Klength; inn <  y_index * Klength + Klength; inn++) {
@@ -316,13 +319,6 @@ int zh_kp2_b_integrated(const int *ndim, const cubareal *x, const int *ncomp, cu
                 int y_index2 = y_index +1;
                 std::vector<double> xValues2, yValues2;
                 xValues2.clear(); yValues2.clear();
-                //double xValues2[Klength], yValues2[Klength];
-                /*
-                for (int inn= y_index2 * Klength; inn <  y_index2 * Klength + Klength; inn++) {
-                    xValues2[inn] =(KValues[inn]);
-                    yValues2[inn] =(NrValues[inn]);
-                }
-                */
                 for (int inn= y_index2 * Klength; inn <  y_index2 * Klength + Klength; inn++) {
                     xValues2.push_back(KValues[inn]);
                     yValues2.push_back(NrValues[inn]);
@@ -334,22 +330,16 @@ int zh_kp2_b_integrated(const int *ndim, const cubareal *x, const int *ncomp, cu
                 Ntidle2 = gsl_interp_eval(interp2, xValues2.data(), yValues2.data(), kpmag, nullptr);
                 gsl_interp_free(interp2);
             }
-            if ( kpmag >= 9.9) {
+            if ( kpmag >= 10.) {
                 int y_index2 = y_index +1;
-                /* // This is the okd one
-                Ntidle1 = AValues[y_index] * ( -1. * pow(kpmag, BValues[y_index]) * CValues[y_index] + DValues[y_index]) +
-                          EValues[y_index] * pow(kpmag, FValues[y_index]);
-                Ntidle2 = AValues[y_index+1] * ( -1. * pow(kpmag, BValues[y_index+1]) * CValues[y_index+1] + DValues[y_index+1]) +
-                          EValues[y_index+1] * pow(kpmag, FValues[y_index+1]); 
-                */
-                Ntidle1 = log( AValues[y_index] * exp(-1.*pow(kpmag, BValues[y_index]) * CValues[y_index] + DValues[y_index]) +
-                               EValues[y_index] * pow(kpmag, FValues[y_index])
-                             );
-                Ntidle2 = log( AValues[y_index2] * exp(-1.*pow(kpmag, BValues[y_index2]) * CValues[y_index2] + DValues[y_index2]) +
-                               EValues[y_index2] * pow(kpmag, FValues[y_index2])
-                             );
+                Ntidle1 = AValues[y_index] * exp(-1.*pow(kpmag, BValues[y_index]) * CValues[y_index] + DValues[y_index]) +
+                               EValues[y_index] * pow(kpmag, FValues[y_index]);
+                Ntidle2 = AValues[y_index2] * exp(-1.*pow(kpmag, BValues[y_index2]) * CValues[y_index2] + DValues[y_index2]) +
+                               EValues[y_index2] * pow(kpmag, FValues[y_index2]);
                 Ntidle1 = exp(Ntidle1)/kpmag/kpmag; // Fit the log(data*k*k)
                 Ntidle2 = exp(Ntidle2)/kpmag/kpmag; // Fit the log(data*k*k)
+                
+                //Ntidle1 = 0.0; Ntidle2 = 0.0;
             }
             Ntidle = (Ntidle1 * (rapidity - YValues_para[y_index] ) + 
                       Ntidle2 * (YValues_para[y_index+1] - rapidity) ) / Y_step;
@@ -360,10 +350,11 @@ int zh_kp2_b_integrated(const int *ndim, const cubareal *x, const int *ncomp, cu
     double  dsigma_dDeltaphi = 0.025330295910584444 * M_PI * R_Nuclear * R_Nuclear / zh/zh * Wk * pow(kpmag, 3) * Ntidle * sigmahat *
                               kTg * PhT; // Jacobe
                               //0.025330295910584444 = 1/(2pi)^2
-    if (dsigma_dDeltaphi < 0.0) {
+    /*if (dsigma_dDeltaphi < 0.0) {
         dsigma_dDeltaphi = 0.0;
         cout << "Warning: " << dsigma_dDeltaphi << "  " <<  Wk << "  " << sigmahat << "   " << endl;
     }
+*/
     f[0] = dsigma_dDeltaphi * total_volume;
     return 0;
 }
@@ -386,11 +377,11 @@ int main(int argc, char* argv[]) {
 
 
 
-    params.etagmax    = 0.35;
-    params.etagmin    = -0.35;
-    params.kpmagmax    = 20.0;///////////////////
-    params.etahmax    = 0.35;
-    params.etahmin    = -0.35;
+    params.etagmax    = 4.0;
+    params.etagmin    = 2.5;
+    params.kpmagmax    = 100.0;///////////////////
+    params.etahmax    = 4.0;
+    params.etahmin    = 2.5;
     params.kTgmax    = kgTmax;
     params.kTgmin    = kgTmin;
     params.PhTmax    = phTmax;
@@ -398,7 +389,8 @@ int main(int argc, char* argv[]) {
     params.bmax      = 5.;// GeV^-1
 
     // Read in Fitted parameters
-    std::ifstream inputFile("All_fit_paras_log_2_5_final_fit_rcBK_MVgamma_Heikki_table");
+    //std::ifstream inputFile("All_fit_paras_MVe_Heikki_table_power3");
+    std::ifstream inputFile("Paul_table/All_fit_paras_Paul_MVgamma_large_nulceus");
     if (!inputFile.is_open()) {
         std::cerr << "Error opening file." << std::endl;
         return 1;
@@ -418,7 +410,7 @@ int main(int argc, char* argv[]) {
     // Close the file
     inputFile.close();
     
-    std::ifstream inputFile2("rcNK_table_K_MVgamma_Heikki_table");
+    std::ifstream inputFile2("Paul_table/rcNK_table_K_A_all_rcBK-MVgamma_large_nucleus");
     if (!inputFile2.is_open()) {
         std::cerr << "Error opening file." << std::endl;
         return 1;
@@ -474,7 +466,7 @@ int main(int argc, char* argv[]) {
     ofstream realA(filename.str());
     
         // Initialize LHAPDF
-    
+        
     LHAPDF::initPDFSet("JAM20-SIDIS_PDF_proton_nlo");
     // Access PDF set
     pdf = LHAPDF::mkPDF("JAM20-SIDIS_PDF_proton_nlo", 0);

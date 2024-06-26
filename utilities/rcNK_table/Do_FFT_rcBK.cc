@@ -22,13 +22,12 @@
 #include <gsl/gsl_sf_bessel.h>
 #include <complex>
 #include <vector>
-#include <LHAPDF/LHAPDF.h>
 #include "FBT.h"
 
 
 std::vector<double> YValues, rValues, NrValues;
-const int Klength = 400;
-const long long int sample_points = 10000000;
+const int Klength = 401;
+const long long int sample_points = 20000000;
 struct PARAMETERS {
     double etagmax;// GeV
     double etagmin;// GeV
@@ -52,17 +51,15 @@ int zh_kp2_b_integrated(const int *ndim, const cubareal *x, const int *ncomp, cu
     PARAMETERS *helper = (PARAMETERS*)userdata;
     // x0: zh; x1: kp; x2: thetakp; x3 etagamma; x4: etah; x5: kTgamma; x6: PhT; x7: theta_kT
     double bpmag = x[0] * helper->bmax;
-    double xValues[Klength], yValues[Klength];
-    int ic = 0;
+    std::vector<double> xValues, yValues;
+    xValues.clear(); yValues.clear();     
     for (int inn= helper->iiyy * Klength; inn <  helper->iiyy * Klength + Klength; inn++) {
-        xValues[ic] =(rValues[inn]);
-        yValues[ic] =(NrValues[inn]);
-        ic++;
+        xValues.push_back(rValues[inn]);
+        yValues.push_back(NrValues[inn]);
      }
-                    
     gsl_interp *interp = gsl_interp_alloc(gsl_interp_linear, Klength);
-    gsl_interp_init(interp, xValues, yValues, Klength);
-    double Ntidle0 = gsl_interp_eval(interp, xValues, yValues, bpmag, nullptr);
+    gsl_interp_init(interp, xValues.data(), yValues.data(), Klength);
+    double Ntidle0 = gsl_interp_eval(interp, xValues.data(), yValues.data(), bpmag, nullptr);
     gsl_interp_free(interp);
     double Wk = 2. * M_PI * bpmag * Ntidle0 *  boost::math::cyl_bessel_j(0, bpmag *helper->qqTT );
     f[0] = Wk * helper->bmax;
@@ -71,22 +68,23 @@ int zh_kp2_b_integrated(const int *ndim, const cubareal *x, const int *ncomp, cu
 
     
 
-int main( void )
+int main(int argc, char* argv[]) 
 {
     // Open the input file
-    std::ifstream inputFile("rcBK_MV_Heikki_table.txt");
+    std::ifstream inputFile("Paul_table/rcBK-MVgamma_proton.txt");
     if (!inputFile.is_open()) {
         std::cerr << "Error opening file." << std::endl;
         return 1;
     }
-
+    int startid = std::stoi(argv[1]);
+    int endid = std::stoi(argv[2]);
     // Read data from the file
     std::vector<double> Integrated_NrValues;
     double Y, r, Nr; // r in [GeV^-1]
     while (inputFile >> Y >> r >> Nr) {
         YValues.push_back(Y);
         rValues.push_back(r);
-        NrValues.push_back(1. - Nr);
+        NrValues.push_back( 1.-Nr);
     }
     // Close the file
     inputFile.close();
@@ -104,7 +102,10 @@ int main( void )
     inputFileNr.close();
     
     // Open the output file
-    std::ofstream outputFile("rcNK_table_K.txt");
+    //std::ofstream outputFile("rcNK_table_K.txt");
+        std::stringstream filename;
+    filename << "rcNK_table_K_" << startid << "_" << endid <<".txt";
+    std::ofstream outputFile(filename.str());
     if (!outputFile.is_open()) {
         std::cerr << "Error opening output file." << std::endl;
         return 1;
@@ -114,8 +115,8 @@ int main( void )
     
     PARAMETERS params;
 
-    params.bmax      = 10.;// GeV^-1
-    const int num_threads = 6;
+    params.bmax      = 25.;// GeV^-1
+    const int num_threads = 1;
     // Set the number of threads to use
     omp_set_num_threads(num_threads);
     /* Define the integration parameters */
@@ -143,20 +144,48 @@ int main( void )
     cubareal prob[ncomp]; /* CHI^2 probabilities */
     
     
-    for (int iy = 0; iy < 81; iy++) {
-        for (int ii =0; ii < 1000; ii ++) {
+    for (int iy = startid; iy < endid; iy++) {
+        for (int ii =0; ii < 400; ii ++) {
             params.iiyy = iy;
-            double qT = ii * 0.01;
+            double qT = ii * 0.05;
             params.qqTT = qT;
             outputFile << iy * 0.2 << "  " << qT << "  ";
-            // Create a subset vector using iterators
             llVegas(ndim, ncomp, zh_kp2_b_integrated, &params, nvec, epsrel, epsabs, flags, seed, mineval, maxeval, nstart, 
                         nincrease, nbatch, gridno, NULL, NULL, &neval, &fail, integral, error, prob);
-            //if (ii ==0) {
-            //    res = Integrated_NrValues[iy];
-           // }
             outputFile << integral[0] << endl;
         }
+        for (int ii =0; ii < 200; ii ++) {
+            params.iiyy = iy;
+            double qT = ii * 0.1 + 20.;
+            params.qqTT = qT;
+            outputFile << iy * 0.2 << "  " << qT << "  ";
+            llVegas(ndim, ncomp, zh_kp2_b_integrated, &params, nvec, epsrel, epsabs, flags, seed, mineval, maxeval, nstart,
+                        nincrease, nbatch, gridno, NULL, NULL, &neval, &fail, integral, error, prob);
+            outputFile << integral[0] << endl;
+        }
+
+        for (int ii =0; ii < 80; ii ++) {
+            params.iiyy = iy;
+            double qT = ii * 0.5 + 40.;
+            params.qqTT = qT;
+            outputFile << iy * 0.2 << "  " << qT << "  ";
+            llVegas(ndim, ncomp, zh_kp2_b_integrated, &params, nvec, epsrel, epsabs, flags, seed, mineval, maxeval, nstart,
+                        nincrease, nbatch, gridno, NULL, NULL, &neval, &fail, integral, error, prob);
+            outputFile << integral[0] << endl;
+        }
+
+
+        for (int ii =0; ii < 20; ii ++) {
+            params.iiyy = iy;
+            double qT = ii * 1. + 80.;
+            params.qqTT = qT;
+            outputFile << iy * 0.2 << "  " << qT << "  ";
+            llVegas(ndim, ncomp, zh_kp2_b_integrated, &params, nvec, epsrel, epsabs, flags, seed, mineval, maxeval, nstart,
+                        nincrease, nbatch, gridno, NULL, NULL, &neval, &fail, integral, error, prob);
+            outputFile << integral[0] << endl;
+        }
+
     }
     outputFile.close();
 }
+

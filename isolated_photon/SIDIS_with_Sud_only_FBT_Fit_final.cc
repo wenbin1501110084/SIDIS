@@ -242,7 +242,7 @@ int zh_kp2_b_integrated(const int *ndim, const cubareal *x, const int *ncomp, cu
     // Use the integration FBT
     double Q2 = rootsnn * rootsnn * xp * xg;
     if (Q2 < 1.0 ) Q2 = 1.0; 
-    FBT ogata0 = FBT(0.0, 0, 3); // Fourier Transform with Jnu, nu=0.0 and N=10
+    FBT ogata0 = FBT(0.0, 0, 500); // Fourier Transform with Jnu, nu=0.0 and N=10
     double Wk = ogata0.fbt(std::bind(Wb, std::placeholders::_1, zh, xp, Q2, xg), kminuskp_mag);
     //double Wk = Wb(bmag, zh, xp, Q2, xg) *  boost::math::cyl_bessel_j(0, bmag *kminuskp_mag );
     //double Ntidle = 1.;

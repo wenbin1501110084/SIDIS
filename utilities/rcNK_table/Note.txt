@@ -12,3 +12,7 @@ For All_fit_paras_log_2_5_final_fit_rcBK_MVgamma_Heikki_table, the fit function 
 def model_func2d(k, A, B, C, D, E, F):
     return  log(A * exp(-k**B * C + D) + E*k**F)
 Fit to the Log(N(K)*K*K)
+
+def model_func2d(k, A, B, C, D, E, F):
+    return  (A * exp(-k**B * C + D) + E*k**F)
+    
