@@ -371,9 +371,9 @@ int zh_kp2_b_integrated(const int *ndim, const cubareal *x, const int *ncomp, cu
     double u2, ub2, d2, db2, s2, sb2, c2, bb2, gl2;
     fdss_(&is, &ih, &ic, &io, &z2, &mub2, &u2, &ub2, &d2, &db2, &s2, &sb2, &c2, &bb2, &gl2);
     
-    double DFuud1 = 3.*u2/z2 * pdf->xfxQ2(2,xq, mub2) + 3.*d2/z2 * pdf->xfxQ2(1,xq, mub2);
+    double DFuud1 = 2.*u2/z2 * pdf->xfxQ2(2,xq, mub2) + 2.*d2/z2 * pdf->xfxQ2(1,xq, mub2);
     double DFuudDg1 = DFuud1 * gl1/z1;
-    double DFuud2 = 3.*u1/z1 * pdf->xfxQ2(2,xq, mub2) + 3.*d1/z1 * pdf->xfxQ2(1,xq, mub2);
+    double DFuud2 = 2.*u1/z1 * pdf->xfxQ2(2,xq, mub2) + 2.*d1/z1 * pdf->xfxQ2(1,xq, mub2);
     double DFuudDg2 = DFuud2 * gl2/z2;
     double TwofgDqDq = 2.*pdf->xfxQ2(21,xq, mub2) * (
                        2.*u1/z1 * u2/z2 + 2.*d1/z1 * d2/z2  + 2.*s1/z1 * s2/z2
@@ -500,7 +500,7 @@ int Calculate_trigger(const int *ndim, const cubareal *x, const int *ncomp, cuba
     double u1, ub1, d1, db1, s1, sb1, c1, bb1, gl1;
     fdss_(&is, &ih, &ic, &io, &z1, &Q2, &u1, &ub1, &d1, &db1, &s1, &sb1, &c1, &bb1, &gl1);
     
-    double sumq =  3.*pdf->xfxQ2(2,xq, Q2) * u1/z1 + 3.*pdf->xfxQ2(1,xq, Q2) * d1/z1;
+    double sumq =  2.*pdf->xfxQ2(2,xq, Q2) * u1/z1 + 2.*pdf->xfxQ2(1,xq, Q2) * d1/z1;
     double sumg =  2.*pdf->xfxQ2(21,xq, Q2) * gl1/z1;
     
     double dsigmaqgqg_dDeltaphi = prefactor * (sumq * inter_F1qgVt + sumg*inter_FadjVt);
