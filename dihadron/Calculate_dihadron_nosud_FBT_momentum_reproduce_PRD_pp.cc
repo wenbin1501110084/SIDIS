@@ -320,16 +320,16 @@ int zh_kp2_b_integrated(const int *ndim, const cubareal *x, const int *ncomp, cu
 //    inter_F3ggVt2 = exp(inter_F3ggVt2);
 //    inter_FadjVt2 = exp(inter_FadjVt2);
 //    
-    inter_F1qgVt = (inter_F1qgVt * (rapidity - YValues[y_index*Klength-Klength] ) + 
-                    inter_F1qgVt2 * (YValues[y_index*Klength] - rapidity) ) / Y_step;
-    inter_F2qgVt = (inter_F2qgVt * (rapidity - YValues[y_index*Klength-Klength] ) + 
-                    inter_F2qgVt2 * (YValues[y_index*Klength] - rapidity) ) / Y_step;
-    inter_F1ggVt = (inter_F1ggVt * (rapidity - YValues[y_index*Klength-Klength] ) + 
-                    inter_F1ggVt2 * (YValues[y_index*Klength] - rapidity) ) / Y_step;
-    inter_F3ggVt = (inter_F3ggVt * (rapidity - YValues[y_index*Klength-Klength] ) + 
-                    inter_F3ggVt2 * (YValues[y_index*Klength] - rapidity) ) / Y_step;
-    inter_FadjVt = (inter_FadjVt * (rapidity - YValues[y_index*Klength-Klength] ) + 
-                    inter_FadjVt2 * (YValues[y_index*Klength] - rapidity) ) / Y_step;
+    inter_F1qgVt = (inter_F1qgVt2 * (rapidity - YValues[y_index*Klength-Klength] ) + 
+                    inter_F1qgVt * (YValues[y_index*Klength] - rapidity) ) / Y_step;
+    inter_F2qgVt = (inter_F2qgVt2 * (rapidity - YValues[y_index*Klength-Klength] ) + 
+                    inter_F2qgVt * (YValues[y_index*Klength] - rapidity) ) / Y_step;
+    inter_F1ggVt = (inter_F1ggVt2 * (rapidity - YValues[y_index*Klength-Klength] ) + 
+                    inter_F1ggVt * (YValues[y_index*Klength] - rapidity) ) / Y_step;
+    inter_F3ggVt = (inter_F3ggVt2 * (rapidity - YValues[y_index*Klength-Klength] ) + 
+                    inter_F3ggVt * (YValues[y_index*Klength] - rapidity) ) / Y_step;
+    inter_FadjVt = (inter_FadjVt2 * (rapidity - YValues[y_index*Klength-Klength] ) + 
+                    inter_FadjVt * (YValues[y_index*Klength] - rapidity) ) / Y_step;
 
     if (xg>0.01) {
         double ratio = pow(1.-xg, 4.) / 0.96059601; // 0.96059601 = (1-0.01)^4
@@ -470,10 +470,10 @@ int Calculate_trigger(const int *ndim, const cubareal *x, const int *ncomp, cuba
     
     gsl_interp_free(interp2);
     
-    inter_F1qgVt = (inter_F1qgVt * (rapidity - YValues[y_index*Klength-Klength] ) + 
-                    inter_F1qgVt2 * (YValues[y_index*Klength] - rapidity) ) / Y_step;
-    inter_FadjVt = (inter_FadjVt * (rapidity - YValues[y_index*Klength-Klength] ) + 
-                    inter_FadjVt2 * (YValues[y_index*Klength] - rapidity) ) / Y_step;
+    inter_F1qgVt = (inter_F1qgVt2 * (rapidity - YValues[y_index*Klength-Klength] ) + 
+                    inter_F1qgVt * (YValues[y_index*Klength] - rapidity) ) / Y_step;
+    inter_FadjVt = (inter_FadjVt2 * (rapidity - YValues[y_index*Klength-Klength] ) + 
+                    inter_FadjVt * (YValues[y_index*Klength] - rapidity) ) / Y_step;
 //    inter_F1qgVt = exp(inter_F1qgVt);
 //    inter_FadjVt = exp(inter_FadjVt);
     if (xg>0.01) {

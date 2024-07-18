@@ -29,16 +29,16 @@ const double alpha_em = 1./137.;
 const double Lambda2 = 0.04;// GeV^2
 const double bmax2 = 2.25;//GeV^-2
 const double HBARC = 0.197327053; // GeV. fm
-const long long int sample_points = 50000;
+const long long int sample_points = 1000000;
 const long long int sample_points0 = 1000;
 const double R_Nuclear = 6.2;//fm
 const int num_threads = 10;
 const double rootsnn = 200.;// GeV
-const double Y1max = 4.0;
-const double Y1min = 2.5;
-const double Y2max = 4.0;
-const double Y2min = 2.5;
-const double Rcut = 0.7;
+const double Y1max = 0.35;
+const double Y1min = -0.35;
+const double Y2max = 0.35;
+const double Y2min = -0.35;
+const double Rcut = 0.4;
 const int dipole_model = 1; //1: rcBK; 0: GBW
 const double Y_step = 0.2;
 const int Klength = 700;
@@ -95,10 +95,10 @@ struct PARAMETERS {
     double bmax;
 };
 
-extern "C"
-{
-double fdss_(int *is, int *ih, int *ic, int *io, double *x, double *Q2, double *u, double *ub, double *d, double *db, double *s, double *sb, double *c, double *b, double *gl);
-}
+//extern "C"
+//{
+//double fdss_(int *is, int *ih, int *ic, int *io, double *x, double *Q2, double *u, double *ub, double *d, double *db, double *s, double *sb, double *c, double *b, double *gl);
+//}
 
 
 int S_Sub(const int *ndim, const cubareal *x, const int *ncomp, cubareal *f, void *userdata){
@@ -193,10 +193,10 @@ double Wb(double b, double zh, double xp, double Q2){
     if (mub2 < 1.0) mub2 = 1.0;
 
     //double SSub = gaussLegendre(n, mub2, Q2, Q2);
-    double beta = 0.776305; 
-    double Lambda2 = 0.0542;//GeV^2  to fit the JAM20 PDF
-    double A = 0.899;
-    double B = -0.631;// A and B are values of the Sudakov only
+    double beta = 0.68714457; // [0.68714457 0.03006785]
+    double Lambda2 = 0.03006785;//GeV^2  to fit the CT18NNLO PDF
+    double A = 0.9366911; //0.9366911  -1.38021438
+    double B = -1.38021438;// A and B are values of the Sudakov only
     // A = 0.899, B =-0.631 for B = 2Bq; 
     // A = 0.897, B = -1.341 for B = 2Bq +Bg;
     double SSub = 1./ beta * ( -1.*A *log(Q2/mub2) + (B + A*log(Q2/Lambda2)) * log( (log(Q2/Lambda2)) / (log(mub2/Lambda2)) ) );
@@ -208,8 +208,8 @@ double Wb(double b, double zh, double xp, double Q2){
     double u, ub, d, db, s, sb, c, bb, gl;
     fdss_(&is, &ih, &ic, &io, &zh, &mub2, &u, &ub, &d, &db, &s, &sb, &c, &bb, &gl);
     */
-    double bWbt = b * 0.02418865082489962 *exp(-SSub - S_nonpert) * (8./9. * FF->xfxQ2(2, zh, mub2)/zh * pdf->xfxQ2(2,xp, mub2)/xp +
-                  1./9. * FF->xfxQ2(1, zh, mub2)/zh * pdf->xfxQ2(1,xp, mub2)/xp ); 
+    double bWbt = b * 0.02418865082489962 *exp(-SSub - S_nonpert) * (8./9. * FF->xfxQ2(2, zh, mub2)/zh * pdf->xfxQ2(2,xp, mub2) +
+                  1./9. * FF->xfxQ2(1, zh, mub2)/zh * pdf->xfxQ2(1,xp, mub2) ); 
     //double bWbt = b * 0.02418865082489962 * exp(-SSub - S_nonpert) * (8./9. * u/zh * pdf->xfxQ2(2,xp, mub2)/xp +
     //              1./9. * d/zh * pdf->xfxQ2(1,xp, mub2)/xp ); 
     //double bWbt = b * 0.02418865082489962 * (8./9. * FF->xfxQ2(2, zh, mub2) * pdf->xfxQ2(2,xp, mub2) +
@@ -223,7 +223,7 @@ double Wb(double b, double zh, double xp, double Q2){
 int zh_kp2_b_integrated(const int *ndim, const cubareal *x, const int *ncomp, cubareal *f, void *userdata){
     PARAMETERS *helper = (PARAMETERS*)userdata;
     // x0: zh; x1: kp; x2: thetakp; x3 etagamma; x4: etah; x5: kTgamma; x6: PhT; x7: theta_kT
-    double zh = x[0];// * 0.9 + 0.05;
+    double zh = x[0]* 0.9 + 0.05;
     double kpmag = x[1] * helper->kpmagmax;
     double thetakp = x[2] * 2. * M_PI;
     double etag = x[3] * (helper->etagmax - helper->etagmin) + helper->etagmin;
@@ -268,33 +268,10 @@ int zh_kp2_b_integrated(const int *ndim, const cubareal *x, const int *ncomp, cu
     // N tidle // GBW, photon-nucleon
     //double G = 0.25 * pow(0.0003/xg, 0.29); 
     double Ntidle = 0.0;
-    if (xg > 0.01) { // Using the Match
-        double ap = pdf->xfxQ2(21, xg, 2.1*2.1) / (pdf->xfxQ2(21, 0.01, 2.1*2.1));
-        double rapidity = log(0.01/0.01);
-        if (rapidity > 15.8) rapidity = 15.8;
-        double Ntidle0 = 0.0;
-        if (dipole_model == 0) {
-            double G = 0.25 * pow(0.01/0.01, 0.29) * exp(0.29 * rapidity); 
-            Ntidle0 = exp(-kpmag*kpmag/G*0.25)/G*0.5; // ????
-        }
-        if (dipole_model == 1) {
-            std::vector<double> xValues, yValues;
-            xValues.clear(); yValues.clear();
-            for (int inn= 0; inn <  Klength; inn++) {
-                xValues.push_back(pTValues[inn]);
-                yValues.push_back(F1qgV[inn]);
-            }
-            //if (kpmag < 9.9) {
-                gsl_interp *interp = gsl_interp_alloc(gsl_interp_cspline, Klength);
-                gsl_interp_init(interp, xValues.data(), yValues.data(), Klength);
-                Ntidle0 = gsl_interp_eval(interp, xValues.data(), yValues.data(), kpmag, nullptr);
-                gsl_interp_free(interp);
-            //}
-        }
-        Ntidle = ap * Ntidle0;
-    } else {
-        double rapidity = log(0.01/xg);
-        if (rapidity > 15.80) rapidity = 15.8;
+    double rapidity = log(0.01/xg);
+    if (rapidity > 15.80) rapidity = 15.8;
+    if (rapidity< 0.0) rapidity = 0.0;
+       
         if (dipole_model == 0) {
             double G = 0.25 * pow(0.01/xg, 0.29) * exp(0.29 * rapidity); 
             Ntidle = exp(-kpmag*kpmag/G*0.25)/G*0.5; // ????
@@ -326,11 +303,15 @@ int zh_kp2_b_integrated(const int *ndim, const cubareal *x, const int *ncomp, cu
                 double Ntidle2 = gsl_interp_eval(interp, xValues2.data(), yValues2.data(), kpmag, nullptr);
                 gsl_interp_free(interp);
                 
-                Ntidle = (Ntidle1 * (rapidity - YValues[y_index*Klength-Klength]  ) + 
-                      Ntidle2 * (YValues[y_index*Klength] - rapidity) ) / Y_step;
+                Ntidle = (Ntidle2 * (rapidity - YValues[y_index2*Klength-Klength]  ) + 
+                      Ntidle1 * (YValues[y_index2*Klength] - rapidity) ) / Y_step;
                 Ntidle = Ntidle *2.*M_PI*M_PI/3./kpmag/kpmag;
             //}
         }
+        
+    if (xg>0.01) {
+        double ratio = pow(1.-xg, 4.) / 0.96059601; // 0.96059601 = (1-0.01)^4
+        Ntidle =  ratio * Ntidle;
     }
     
     // integrate the whole function
@@ -433,8 +414,8 @@ int Calculate_trigger(const int *ndim, const cubareal *x, const int *ncomp, cuba
                 double Ntidle2 = gsl_interp_eval(interp, xValues2.data(), yValues2.data(), kTsum, nullptr);
                 gsl_interp_free(interp);
                 
-                Ntidle = (Ntidle1 * (rapidity - YValues[y_index*Klength-Klength]  ) + 
-                          Ntidle2 * (YValues[y_index*Klength] - rapidity) ) / Y_step;
+                Ntidle = (Ntidle2 * (rapidity - YValues[y_index2*Klength-Klength]  ) + 
+                          Ntidle1 * (YValues[y_index2*Klength] - rapidity) ) / Y_step;
                 Ntidle = Ntidle *2.*M_PI*M_PI/3./kTsum/kTsum;
             //}
         }
@@ -488,7 +469,7 @@ int main(int argc, char* argv[]) {
     params.bmax      = 25.;// GeV^-1
  
         // Open the input file
-    std::ifstream inputFile("Paul_table/Regularged_FT_large_Nuleus_MV_Paul");
+    std::ifstream inputFile("Paul_table/Regularged_FT_proton_MV_Paul");
     if (!inputFile.is_open()) {
         std::cerr << "Error opening file." << std::endl;
         return 1;
@@ -546,30 +527,24 @@ int main(int argc, char* argv[]) {
     
         // Initialize LHAPDF
         
-    LHAPDF::initPDFSet("JAM20-SIDIS_PDF_proton_nlo");
-    // Access PDF set
-    pdf = LHAPDF::mkPDF("JAM20-SIDIS_PDF_proton_nlo", 0);
-    const LHAPDF::PDFSet set("JAM20-SIDIS_PDF_proton_nlo"); // arxiv: 2101.04664
-    /*
-    LHAPDF::initPDFSet("cteq66");
-    // Access PDF set
-    pdf = LHAPDF::mkPDF("cteq66", 0);
-    const LHAPDF::PDFSet set("cteq66"); // arxiv: 2101.04664
-    */
+    LHAPDF::initPDFSet("CT18NNLO");
+    pdf = LHAPDF::mkPDF("CT18NNLO", 0);
+    const LHAPDF::PDFSet set("CT18NNLO"); // arxiv: 2101.04664
     // Initialize LHAPDF and set the fragmentation function set
     LHAPDF::initPDFSet("JAM20-SIDIS_FF_hadron_nlo");
     FF = LHAPDF::mkPDF("JAM20-SIDIS_FF_hadron_nlo", 0);  // Use the appropriate member index if there are multiple sets
-
-    const int ndim2 = 6; /* number of dimensions */
+   
     const int ncomp2 = 1; /* number of components */
     cubareal Trigger[ncomp2]; /* integral estimates */
-    cubareal error2[ncomp2]; /* error estimates */
-    cubareal prob2[ncomp2]; /* CHI^2 probabilities */
+    /*
+    const int ndim2 = 6; 
+    cubareal error2[ncomp2]; 
+    cubareal prob2[ncomp2];
     
     llVegas(ndim2, ncomp2, Calculate_trigger, &params, nvec, epsrel, epsabs, flags, seed, mineval, maxeval, nstart, 
             nincrease, nbatch, gridno, NULL, NULL, &neval, &fail, Trigger, error2, prob2);
-            
-            
+    */
+    Trigger[0] = 1.;
     int length;
     double detal_theta; double detal_theta_step;
     if (stage == 0) {

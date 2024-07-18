@@ -25,23 +25,26 @@
 
 const double CA = 3.;
 const double CF = 4./3.;
+const double alpha_em = 1./137.;
 const double Lambda2 = 0.04;// GeV^2
 const double bmax2 = 2.25;//GeV^-2
 const double HBARC = 0.197327053; // GeV. fm
-const long long int sample_points = 500000;
+const long long int sample_points = 1000000;
 const long long int sample_points0 = 1000;
 const double R_Nuclear = 6.2;//fm
 const int num_threads = 10;
 const double rootsnn = 200.;// GeV
-const double Rcut = 0.7;
+const double Y1max = 0.35;
+const double Y1min = -0.35;
+const double Y2max = 0.35;
+const double Y2min = -0.35;
+const double Rcut = 0.4;
 const int dipole_model = 1; //1: rcBK; 0: GBW
 const double Y_step = 0.2;
 const int Klength = 700;
-std::vector<double> AValues, BValues, CValues, DValues, EValues, FValues, YValues_para;
-//std::vector<double> KValues, NrValues;
-double KValues[100000] = {0.0}; 
-double NrValues[100000] = {0.0};
-double YValues[100000] = {0.0};
+const double minpT = 1.e-05;
+const double maxpT = 99.;
+std::vector<double> YValues, pTValues, F1qgV, F2qgV, F1ggV, F3ggV, F6ggV, FadjV;
 
 
 LHAPDF::PDF* FF;
@@ -92,10 +95,10 @@ struct PARAMETERS {
     double bmax;
 };
 
-extern "C"
-{
-double fdss_(int *is, int *ih, int *ic, int *io, double *x, double *Q2, double *u, double *ub, double *d, double *db, double *s, double *sb, double *c, double *b, double *gl);
-}
+//extern "C"
+//{
+//double fdss_(int *is, int *ih, int *ic, int *io, double *x, double *Q2, double *u, double *ub, double *d, double *db, double *s, double *sb, double *c, double *b, double *gl);
+//}
 
 
 int S_Sub(const int *ndim, const cubareal *x, const int *ncomp, cubareal *f, void *userdata){
@@ -190,10 +193,10 @@ double Wb(double b, double zh, double xp, double Q2){
     if (mub2 < 1.0) mub2 = 1.0;
 
     //double SSub = gaussLegendre(n, mub2, Q2, Q2);
-    double beta = 0.776305; 
-    double Lambda2 = 0.0542;//GeV^2  to fit the JAM20 PDF
-    double A = 0.899;
-    double B = -0.631;// A and B are values of the Sudakov only
+    double beta = 0.68714457; // [0.68714457 0.03006785]
+    double Lambda2 = 0.03006785;//GeV^2  to fit the CT18NNLO PDF
+    double A = 0.9366911; //0.9366911  -1.38021438
+    double B = -1.38021438;// A and B are values of the Sudakov only
     // A = 0.899, B =-0.631 for B = 2Bq; 
     // A = 0.897, B = -1.341 for B = 2Bq +Bg;
     double SSub = 1./ beta * ( -1.*A *log(Q2/mub2) + (B + A*log(Q2/Lambda2)) * log( (log(Q2/Lambda2)) / (log(mub2/Lambda2)) ) );
@@ -205,8 +208,8 @@ double Wb(double b, double zh, double xp, double Q2){
     double u, ub, d, db, s, sb, c, bb, gl;
     fdss_(&is, &ih, &ic, &io, &zh, &mub2, &u, &ub, &d, &db, &s, &sb, &c, &bb, &gl);
     */
-    double bWbt = b * 0.02418865082489962 *exp(-SSub - S_nonpert) * (8./9. * FF->xfxQ2(2, zh, mub2)/zh * pdf->xfxQ2(2,xp, mub2)/xp +
-                  1./9. * FF->xfxQ2(1, zh, mub2)/zh * pdf->xfxQ2(1,xp, mub2)/xp ); 
+    double bWbt = b * 0.02418865082489962 *exp(-SSub - S_nonpert) * (8./9. * FF->xfxQ2(2, zh, mub2)/zh * pdf->xfxQ2(2,xp, mub2) +
+                  1./9. * FF->xfxQ2(1, zh, mub2)/zh * pdf->xfxQ2(1,xp, mub2) ); 
     //double bWbt = b * 0.02418865082489962 * exp(-SSub - S_nonpert) * (8./9. * u/zh * pdf->xfxQ2(2,xp, mub2)/xp +
     //              1./9. * d/zh * pdf->xfxQ2(1,xp, mub2)/xp ); 
     //double bWbt = b * 0.02418865082489962 * (8./9. * FF->xfxQ2(2, zh, mub2) * pdf->xfxQ2(2,xp, mub2) +
@@ -220,7 +223,7 @@ double Wb(double b, double zh, double xp, double Q2){
 int zh_kp2_b_integrated(const int *ndim, const cubareal *x, const int *ncomp, cubareal *f, void *userdata){
     PARAMETERS *helper = (PARAMETERS*)userdata;
     // x0: zh; x1: kp; x2: thetakp; x3 etagamma; x4: etah; x5: kTgamma; x6: PhT; x7: theta_kT
-    double zh = x[0];// * 0.9 + 0.05;
+    double zh = x[0]* 0.9 + 0.05;
     double kpmag = x[1] * helper->kpmagmax;
     double thetakp = x[2] * 2. * M_PI;
     double etag = x[3] * (helper->etagmax - helper->etagmin) + helper->etagmin;
@@ -233,6 +236,8 @@ int zh_kp2_b_integrated(const int *ndim, const cubareal *x, const int *ncomp, cu
         return 0;
     }
     double theta_kT = x[7] * 2. * M_PI;
+    if (kpmag > maxpT) kpmag = maxpT;
+    if (kpmag < minpT) kpmag = minpT;
     //double bmag = x[8] * helper->bmax;
     double theta_PhT = theta_kT - helper->Delta_phi;
     double total_volume = (helper->etagmax - helper->etagmin) * (helper->etahmax - helper->etahmin) * (helper->kTgmax - helper->kTgmin) *
@@ -241,7 +246,7 @@ int zh_kp2_b_integrated(const int *ndim, const cubareal *x, const int *ncomp, cu
     double z = exp(etag) * kTg / (exp(etag)* kTg + exp(etah) * PhT / zh);
     double qdotk = 0.5 * kTg * kTg / z/(1.-z); // back-to-back limit
     //double qdotk = kTg * PhT / zh * (0.5 * exp(etag - etah) + 0.5 * exp(etah - etag) - cos(helper->Delta_phi));
-    double sigmahat = 0.0012165450121654502 * (1. + (1.-z)*(1.-z)) * z / qdotk /kTg/kTg; // 0.0012165450121654502 = 1/137/6
+    double sigmahat = alpha_em / 6. * (1. + (1.-z)*(1.-z)) * z / qdotk /kTg/kTg; // 0.0012165450121654502 = 1/137/6
     double kTxdiff = kTg*cos(theta_kT) + PhT * cos(theta_PhT) / zh - kpmag*cos(thetakp);
     double kTydiff = kTg*sin(theta_kT) + PhT * sin(theta_PhT) / zh - kpmag*sin(thetakp);
     double kminuskp_mag = sqrt(pow(kTxdiff, 2) + pow(kTydiff, 2));
@@ -257,93 +262,56 @@ int zh_kp2_b_integrated(const int *ndim, const cubareal *x, const int *ncomp, cu
     // Use the integration FBT
     double Q2 = rootsnn * rootsnn * xp * xg;
     if (Q2 < 1.0 ) Q2 = 1.0; 
-    FBT ogata0 = FBT(0.0, 0, 500); // Fourier Transform with Jnu, nu=0.0 and N=10
+    FBT ogata0 = FBT(0.0, 0, 1000); // Fourier Transform with Jnu, nu=0.0 and N=10
     double Wk = ogata0.fbt(std::bind(Wb, std::placeholders::_1, zh, xp, Q2), kminuskp_mag);
     //double Wk = Wb(bmag, zh, xp, Q2) *  boost::math::cyl_bessel_j(0, bmag *kminuskp_mag );
     // N tidle // GBW, photon-nucleon
     //double G = 0.25 * pow(0.0003/xg, 0.29); 
     double Ntidle = 0.0;
-    if (xg > 0.01) { // Using the Match
-        double ap = pdf->xfxQ2(21, xg, 2.1*2.1) / (pdf->xfxQ2(21, 0.01, 2.1*2.1));
-        double rapidity = log(0.01/0.01);
-        if (rapidity > 15.8) rapidity = 15.8;
-        double Ntidle0 = 0.0;
-        if (dipole_model == 0) {
-            double G = 0.25 * pow(0.01/0.01, 0.29) * exp(0.29 * rapidity); 
-            Ntidle0 = exp(-kpmag*kpmag/G*0.25)/G*0.5; // ????
-        }
-        if (dipole_model == 1) {
-            std::vector<double> xValues, yValues;
-            xValues.clear(); yValues.clear();
-            for (int inn= 0; inn <  Klength; inn++) {
-                xValues.push_back(KValues[inn]);
-                yValues.push_back(NrValues[inn]);
-            }
-            if (kpmag < 9.9) {
-                gsl_interp *interp = gsl_interp_alloc(gsl_interp_linear, Klength);
-                gsl_interp_init(interp, xValues.data(), yValues.data(), Klength);
-                Ntidle0 = gsl_interp_eval(interp, xValues.data(), yValues.data(), kpmag, nullptr);
-                gsl_interp_free(interp);
-            }
-            if (kpmag >= 9.9) {
-                Ntidle0 =  AValues[0] * exp(-1.*pow(kpmag, BValues[0]) * CValues[0] + DValues[0]) +
-                               EValues[0] * pow(kpmag, FValues[0]);
-                Ntidle0 = exp(Ntidle0)/kpmag/kpmag; // Fit the log(data*k*k)
-            }
-        }
-        Ntidle = ap * Ntidle0;
-    } else {
-        double rapidity = log(0.01/xg);
-        if (rapidity > 16.0) rapidity = 16.;
+    double rapidity = log(0.01/xg);
+    if (rapidity > 15.80) rapidity = 15.8;
+    if (rapidity< 0.0) rapidity = 0.0;
+       
         if (dipole_model == 0) {
             double G = 0.25 * pow(0.01/xg, 0.29) * exp(0.29 * rapidity); 
             Ntidle = exp(-kpmag*kpmag/G*0.25)/G*0.5; // ????
         } 
         if (dipole_model == 1) {
             int y_index = int(rapidity/Y_step);
-            double Ntidle1 = 0;
-            double Ntidle2 = 0;
-            if ( kpmag < 10.) {
+            //if ( kpmag < 99.) {
                 std::vector<double> xValues3, yValues3;
                 xValues3.clear(); yValues3.clear();
                 for (int inn= y_index * Klength; inn <  y_index * Klength + Klength; inn++) {
-                    xValues3.push_back(KValues[inn]);
-                    yValues3.push_back(NrValues[inn]);
+                    xValues3.push_back(pTValues[inn]);
+                    yValues3.push_back(F1qgV[inn]);
                 
                 }
-                gsl_interp *interp = gsl_interp_alloc(gsl_interp_linear, Klength);
+                gsl_interp *interp = gsl_interp_alloc(gsl_interp_cspline, Klength);
+                
                 gsl_interp_init(interp, xValues3.data(), yValues3.data(), Klength);
-                Ntidle1 = gsl_interp_eval(interp, xValues3.data(), yValues3.data(), kpmag, nullptr);
-                gsl_interp_free(interp);
+                double Ntidle1 = gsl_interp_eval(interp, xValues3.data(), yValues3.data(), kpmag, nullptr);
                 /////
                 int y_index2 = y_index +1;
                 std::vector<double> xValues2, yValues2;
                 xValues2.clear(); yValues2.clear();
                 for (int inn= y_index2 * Klength; inn <  y_index2 * Klength + Klength; inn++) {
-                    xValues2.push_back(KValues[inn]);
-                    yValues2.push_back(NrValues[inn]);
+                    xValues2.push_back(pTValues[inn]);
+                    yValues2.push_back(F1qgV[inn]);
                 
                 }
+                gsl_interp_init(interp, xValues2.data(), yValues2.data(), Klength);
+                double Ntidle2 = gsl_interp_eval(interp, xValues2.data(), yValues2.data(), kpmag, nullptr);
+                gsl_interp_free(interp);
                 
-                gsl_interp *interp2 = gsl_interp_alloc(gsl_interp_linear, Klength);
-                gsl_interp_init(interp2, xValues2.data(), yValues2.data(), Klength);
-                Ntidle2 = gsl_interp_eval(interp2, xValues2.data(), yValues2.data(), kpmag, nullptr);
-                gsl_interp_free(interp2);
-            }
-            if ( kpmag >= 10.) {
-                int y_index2 = y_index +1;
-                Ntidle1 = AValues[y_index] * exp(-1.*pow(kpmag, BValues[y_index]) * CValues[y_index] + DValues[y_index]) +
-                               EValues[y_index] * pow(kpmag, FValues[y_index]);
-                Ntidle2 = AValues[y_index2] * exp(-1.*pow(kpmag, BValues[y_index2]) * CValues[y_index2] + DValues[y_index2]) +
-                               EValues[y_index2] * pow(kpmag, FValues[y_index2]);
-                Ntidle1 = exp(Ntidle1)/kpmag/kpmag; // Fit the log(data*k*k)
-                Ntidle2 = exp(Ntidle2)/kpmag/kpmag; // Fit the log(data*k*k)
-                
-                //Ntidle1 = 0.0; Ntidle2 = 0.0;
-            }
-            Ntidle = (Ntidle1 * (rapidity - YValues_para[y_index] ) + 
-                      Ntidle2 * (YValues_para[y_index+1] - rapidity) ) / Y_step;
+                Ntidle = (Ntidle2 * (rapidity - YValues[y_index2*Klength-Klength]  ) + 
+                      Ntidle1 * (YValues[y_index2*Klength] - rapidity) ) / Y_step;
+                Ntidle = Ntidle *2.*M_PI*M_PI/3./kpmag/kpmag;
+            //}
         }
+        
+    if (xg>0.01) {
+        double ratio = pow(1.-xg, 4.) / 0.96059601; // 0.96059601 = (1-0.01)^4
+        Ntidle =  ratio * Ntidle;
     }
     
     // integrate the whole function
@@ -355,6 +323,117 @@ int zh_kp2_b_integrated(const int *ndim, const cubareal *x, const int *ncomp, cu
         cout << "Warning: " << dsigma_dDeltaphi << "  " <<  Wk << "  " << sigmahat << "   " << endl;
     }
 */
+    f[0] = dsigma_dDeltaphi * total_volume;
+    return 0;
+}
+
+
+int Calculate_trigger(const int *ndim, const cubareal *x, const int *ncomp, cubareal *f, void *userdata){
+    PARAMETERS *helper = (PARAMETERS*)userdata;
+    double pTq = x[0] * helper->kpmagmax;
+    double thetapq = x[1] * 2. * M_PI;
+    double etaq = x[2] * (helper->etahmax - helper->etahmin) + helper->etahmin;
+    double etag = x[3] * (helper->etagmax - helper->etagmin) + helper->etagmin;
+    double kTg  = x[4] * (helper->kTgmax - helper->kTgmin)   + helper->kTgmin;
+    double theta_kT = x[5] * 2. * M_PI;
+    double Delta_phi = theta_kT - thetapq;
+    double R2condition = (etag - etaq) * (etag - etaq) + Delta_phi * Delta_phi;
+    if (R2condition < Rcut*Rcut) {
+        f[0] = 0.0;
+        return 0;
+    }
+    double total_volume = helper->kpmagmax * 2. * M_PI * (helper->etagmax - helper->etagmin) * (helper->etahmax - helper->etahmin) *
+                          (helper->kTgmax - helper->kTgmin) * 2. * M_PI;
+    double kTsumx = kTg*cos(theta_kT) + pTq * cos(thetapq);
+    double kTsumy = kTg*sin(theta_kT) + pTq * sin(thetapq);
+    double kTsum = sqrt(pow(kTsumx, 2) + pow(kTsumy, 2));
+    double xp = std::max(kTg, pTq) * (exp(etag) + exp(etaq))/rootsnn;
+    double xg = std::max(kTg, pTq) * (exp(-etag)  + exp(-etaq))/rootsnn;
+    if (xp > 1.0 || xg > 1.) {
+        f[0] = 0.0;
+        return 0;
+    }
+    if (kTsum > maxpT) kTsum = maxpT;
+    if (kTsum < minpT) kTsum = minpT;
+    
+    double Ntidle = 0.0;
+    if (xg > 0.01) { // Using the Match
+        double ap = pdf->xfxQ2(21, xg, 2.1*2.1) / (pdf->xfxQ2(21, 0.01, 2.1*2.1));
+        double rapidity = log(0.01/0.01);
+        if (rapidity > 15.8) rapidity = 15.8;
+        double Ntidle0 = 0.0;
+        if (dipole_model == 0) {
+            double G = 0.25 * pow(0.01/0.01, 0.29) * exp(0.29 * rapidity); 
+            Ntidle0 = exp(-kTsum*kTsum/G*0.25)/G*0.5; // ????
+        }
+        if (dipole_model == 1) {
+            std::vector<double> xValues, yValues;
+            xValues.clear(); yValues.clear();
+            for (int inn= 0; inn <  Klength; inn++) {
+                xValues.push_back(pTValues[inn]);
+                yValues.push_back(F1qgV[inn]);
+            }
+            //if (kpmag < 9.9) {
+                gsl_interp *interp = gsl_interp_alloc(gsl_interp_cspline, Klength);
+                gsl_interp_init(interp, xValues.data(), yValues.data(), Klength);
+                Ntidle0 = gsl_interp_eval(interp, xValues.data(), yValues.data(), kTsum, nullptr);
+                gsl_interp_free(interp);
+            //}
+        }
+        Ntidle = ap * Ntidle0;
+    } else {
+        double rapidity = log(0.01/xg);
+        if (rapidity > 15.80) rapidity = 15.8;
+        if (dipole_model == 0) {
+            double G = 0.25 * pow(0.01/xg, 0.29) * exp(0.29 * rapidity); 
+            Ntidle = exp(-kTsum*kTsum/G*0.25)/G*0.5; // ????
+        } 
+        if (dipole_model == 1) {
+            int y_index = int(rapidity/Y_step);
+            //if ( kpmag < 99.) {
+                std::vector<double> xValues3, yValues3;
+                xValues3.clear(); yValues3.clear();
+                for (int inn= y_index * Klength; inn <  y_index * Klength + Klength; inn++) {
+                    xValues3.push_back(pTValues[inn]);
+                    yValues3.push_back(F1qgV[inn]);
+                
+                }
+                gsl_interp *interp = gsl_interp_alloc(gsl_interp_cspline, Klength);
+                gsl_interp_init(interp, xValues3.data(), yValues3.data(), Klength);
+                double Ntidle1 = gsl_interp_eval(interp, xValues3.data(), yValues3.data(), kTsum, nullptr);
+                /////
+                int y_index2 = y_index +1;
+                std::vector<double> xValues2, yValues2;
+                xValues2.clear(); yValues2.clear();
+                for (int inn= y_index2 * Klength; inn <  y_index2 * Klength + Klength; inn++) {
+                    xValues2.push_back(pTValues[inn]);
+                    yValues2.push_back(F1qgV[inn]);
+                
+                }
+                gsl_interp_init(interp, xValues2.data(), yValues2.data(), Klength);
+                double Ntidle2 = gsl_interp_eval(interp, xValues2.data(), yValues2.data(), kTsum, nullptr);
+                gsl_interp_free(interp);
+                
+                Ntidle = (Ntidle1 * (rapidity - YValues[y_index*Klength-Klength]  ) + 
+                          Ntidle2 * (YValues[y_index*Klength] - rapidity) ) / Y_step;
+                Ntidle = Ntidle *2.*M_PI*M_PI/3./kTsum/kTsum;
+            //}
+        }
+    }
+    double z = exp(etag) * kTg / (exp(etag)* kTg + exp(etaq) * pTq);
+    double PTx = (1.-z) * kTg*cos(theta_kT) - z * pTq * cos(thetapq);
+    double PTy = (1.-z) * kTg*sin(theta_kT) - z * pTq * sin(thetapq);
+    double PT = sqrt(PTx*PTx + PTy*PTy);
+    double prefactor = alpha_em /2./M_PI/M_PI * kTg * pTq * z*z * (1.-z) * (1. + (1.-z)*(1.-z))*kTsum*kTsum / 
+                       (PT*PT * ( pow(PTx+z*kTsumx, 2.) + pow(PTy+z*kTsumy, 2.) ) );
+    double mu2 = kTg * kTg;
+    double pdfsum = 8./9. * pdf->xfxQ2(2,xp, mu2) + 1./9. * pdf->xfxQ2(1,xp, mu2); 
+    double dsigma_dDeltaphi = prefactor * pdfsum * Ntidle;
+    /*if (dsigma_dDeltaphi < 0.0) {
+        dsigma_dDeltaphi = 0.0;
+        cout << "Warning: " << dsigma_dDeltaphi << "  " <<  Wk << "  " << sigmahat << "   " << endl;
+    }
+    */
     f[0] = dsigma_dDeltaphi * total_volume;
     return 0;
 }
@@ -377,56 +456,37 @@ int main(int argc, char* argv[]) {
 
 
 
-    params.etagmax    = 4.0;
-    params.etagmin    = 2.5;
-    params.kpmagmax    = 100.0;///////////////////
-    params.etahmax    = 4.0;
-    params.etahmin    = 2.5;
+    params.kpmagmax   = 100.0;///////////////////
+    params.etagmax    = Y1max;
+    params.etagmin    = Y1min;
+    params.etahmax    = Y2max;
+    params.etahmin    = Y2min;
+    
     params.kTgmax    = kgTmax;
     params.kTgmin    = kgTmin;
     params.PhTmax    = phTmax;
     params.PhTmin    = phTmin;
-    params.bmax      = 5.;// GeV^-1
-
-    // Read in Fitted parameters
-    //std::ifstream inputFile("All_fit_paras_MVe_Heikki_table_power3");
-    std::ifstream inputFile("Paul_table/All_fit_paras_Paul_MVgamma_large_nulceus");
+    params.bmax      = 25.;// GeV^-1
+ 
+        // Open the input file
+    std::ifstream inputFile("Paul_table/Regularged_FT_proton_MV_Paul");
     if (!inputFile.is_open()) {
         std::cerr << "Error opening file." << std::endl;
         return 1;
     }
-
     // Read data from the file
-    double Ymid, Amid, Bmid, Cmid, Dmid, Emid, Fmid; // r in [GeV^-1]
-    while (inputFile >> Ymid >> Amid >> Bmid >> Cmid >> Dmid >> Emid >> Fmid) {
-        YValues_para.push_back(Ymid);
-        AValues.push_back(Amid);
-        BValues.push_back(Bmid);
-        CValues.push_back(Cmid);
-        DValues.push_back(Dmid);
-        EValues.push_back(Emid);
-        FValues.push_back(Fmid);
+    double Y, pTm, F1qgm, F2qgm, F1ggm, F3ggm, F6ggm, Fadjm;
+    while (inputFile >> Y >> pTm >> F1qgm >> F2qgm >> F1ggm >> F3ggm >> F6ggm >> Fadjm) {
+        YValues.push_back(Y);
+        pTValues.push_back(pTm);
+        F1qgV.push_back(F1qgm);
+        F2qgV.push_back(F2qgm);
+        F1ggV.push_back(F1ggm);
+        F3ggV.push_back(F3ggm);
+        F6ggV.push_back(F6ggm);
+        FadjV.push_back(Fadjm);
     }
-    // Close the file
     inputFile.close();
-    
-    std::ifstream inputFile2("Paul_table/rcNK_table_K_A_all_rcBK-MVgamma_large_nucleus");
-    if (!inputFile2.is_open()) {
-        std::cerr << "Error opening file." << std::endl;
-        return 1;
-    }
-
-    // Read data from the file
-    double Y, KK, Nr; // r in [GeV^-1]
-    int ikik = 0;
-    while (inputFile2 >> Y >> KK >> Nr) {
-        YValues[ikik] = Y;
-        KValues[ikik] = KK; 
-        NrValues[ikik] = Nr;
-        ikik++;
-    }
-    // Close the file
-    inputFile2.close();
     
     
     /* Define the integration parameters */
@@ -458,7 +518,7 @@ int main(int argc, char* argv[]) {
     //output the results to file
     //char output_filename[128];
     std::stringstream filename;
-    filename << "dSigma_dDeltaPhi_with_Sub_FBT_MVgamma_" << startid << "_" << endid << "_" <<  stage 
+    filename << "dSigma_dDeltaPhi_photon_hadron_MV_" << startid << "_" << endid << "_" <<  stage 
              << "_"<< kgTmin << "_" << kgTmax << "_" << phTmin << "_" << phTmax <<".txt";
 
     //sprintf(output_filename,"dSigma_dDeltaPhi_with_Sub_FBT");
@@ -467,20 +527,24 @@ int main(int argc, char* argv[]) {
     
         // Initialize LHAPDF
         
-    LHAPDF::initPDFSet("JAM20-SIDIS_PDF_proton_nlo");
-    // Access PDF set
-    pdf = LHAPDF::mkPDF("JAM20-SIDIS_PDF_proton_nlo", 0);
-    const LHAPDF::PDFSet set("JAM20-SIDIS_PDF_proton_nlo"); // arxiv: 2101.04664
-    /*
-    LHAPDF::initPDFSet("cteq66");
-    // Access PDF set
-    pdf = LHAPDF::mkPDF("cteq66", 0);
-    const LHAPDF::PDFSet set("cteq66"); // arxiv: 2101.04664
-    */
+    LHAPDF::initPDFSet("CT18NNLO");
+    pdf = LHAPDF::mkPDF("CT18NNLO", 0);
+    const LHAPDF::PDFSet set("CT18NNLO"); // arxiv: 2101.04664
     // Initialize LHAPDF and set the fragmentation function set
     LHAPDF::initPDFSet("JAM20-SIDIS_FF_hadron_nlo");
     FF = LHAPDF::mkPDF("JAM20-SIDIS_FF_hadron_nlo", 0);  // Use the appropriate member index if there are multiple sets
-
+   
+    const int ncomp2 = 1; /* number of components */
+    cubareal Trigger[ncomp2]; /* integral estimates */
+    /*
+    const int ndim2 = 6; 
+    cubareal error2[ncomp2]; 
+    cubareal prob2[ncomp2];
+    
+    llVegas(ndim2, ncomp2, Calculate_trigger, &params, nvec, epsrel, epsabs, flags, seed, mineval, maxeval, nstart, 
+            nincrease, nbatch, gridno, NULL, NULL, &neval, &fail, Trigger, error2, prob2);
+    */
+    Trigger[0] = 1.;
     int length;
     double detal_theta; double detal_theta_step;
     if (stage == 0) {
@@ -495,12 +559,7 @@ int main(int argc, char* argv[]) {
                 /* Call the integrator */
                 llVegas(ndim, ncomp, zh_kp2_b_integrated, &params, nvec, epsrel, epsabs, flags, seed, mineval, maxeval, nstart, 
                         nincrease, nbatch, gridno, NULL, NULL, &neval, &fail, integral, error, prob);
-                /* Print the results */
-                //printf("Integral estimate: %e\n", integral[0]);
-                //printf("Error estimate: %e\n", error[0]);
-                //printf("Number of evaluations: %lld\n", neval);
-                //printf("Status flag: %d\n", fail);
-                realA << integral[0] <<  "  ";
+                realA << integral[0] <<  "  " << Trigger[0] << "  ";
         realA << endl;
     }
     }
@@ -515,12 +574,7 @@ int main(int argc, char* argv[]) {
                 /* Call the integrator */
                 llVegas(ndim, ncomp, zh_kp2_b_integrated, &params, nvec, epsrel, epsabs, flags, seed, mineval, maxeval, nstart, 
                         nincrease, nbatch, gridno, NULL, NULL, &neval, &fail, integral, error, prob);
-                /* Print the results */
-                //printf("Integral estimate: %e\n", integral[0]);
-                //printf("Error estimate: %e\n", error[0]);
-                //printf("Number of evaluations: %lld\n", neval);
-                //printf("Status flag: %d\n", fail);
-                realA << integral[0] <<  "  ";
+                realA << integral[0] <<  "  " << Trigger[0] << "  ";
         realA << endl;
     }
     }
@@ -534,12 +588,7 @@ int main(int argc, char* argv[]) {
                 /* Call the integrator */
                 llVegas(ndim, ncomp, zh_kp2_b_integrated, &params, nvec, epsrel, epsabs, flags, seed, mineval, maxeval, nstart, 
                         nincrease, nbatch, gridno, NULL, NULL, &neval, &fail, integral, error, prob);
-                /* Print the results */
-                //printf("Integral estimate: %e\n", integral[0]);
-                //printf("Error estimate: %e\n", error[0]);
-                //printf("Number of evaluations: %lld\n", neval);
-                //printf("Status flag: %d\n", fail);
-                realA << integral[0] <<  "  ";
+                realA << integral[0] <<  "  "  << Trigger[0] << "  ";
         realA << endl;
     }
     }   
