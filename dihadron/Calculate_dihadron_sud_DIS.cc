@@ -40,16 +40,16 @@ const double bmax2 = 0.25;//GeV^-2
 const double Q0 = 1.5491933384829668;//GeV
 const double g1 = 0.212;
 const double g2 = 0.84;
-const double rootsnn = 200.;// GeV
+const double rootsnn = 45.;// GeV
 const double Y1max = 2.;
 const double Y1min = 1.;
 const double Y2max = 2.;
 const double Y2min = 1.;
-const double Q2minIn = 5.0;// GeV^2
-const double Q2maxIn = 5.0;// GeV^2
+const double Q2minIn = 1.0;// GeV^2
+const double Q2maxIn = 1.0;// GeV^2
 const double Rcut = 0.4;
 const int num_threads = 10;
-const long long int sample_points = 2000;
+const long long int sample_points = 2000000;
 
 LHAPDF::PDF* FF;
 LHAPDF::PDF* pdf;
@@ -106,10 +106,10 @@ double Wgammag2qqbar(double bpmag, double z1, double z2, double z, double PT, do
     double mub = 1.1224972160321824/bstar;//1.1224972160321824 = 2exp(-gammaE)
     double mub2 = mub * mub;
     if (std::isnan(mub2)) {
-        mub2 = Q2;
+        mub2 = PT * PT;
         std::cout << "Warning: myValue is NaN " << bstar << "  " << bpmag << std::endl;
     } 
-    if (mub2 > Q2) mub2= Q2;
+    if (mub2 > PT*PT) mub2= PT*PT;
     //if (mub2 < 1.) return 0.0;
     double Dqxqx1 = 4./9. * FF->xfxQ2(2, z1, mub2)/z1 * FF->xfxQ2(2, z2, mub2)/z2  + 
                     1./9. * FF->xfxQ2(1, z1, mub2)/z1 * FF->xfxQ2(1, z2, mub2)/z2 +
@@ -287,7 +287,7 @@ int main(int argc, char* argv[])
     params.Q2min       = Q2minIn;
     params.Q2max       = Q2maxIn;
     // Open the input file
-    std::ifstream inputFile("Paul_table/Regularged_FWW_proton_MV_Paul");
+    std::ifstream inputFile("Paul_table/Regularged_FWW_nucleus_MV_Paul");
     if (!inputFile.is_open()) {
         std::cerr << "Error opening file." << std::endl;
         return 1;

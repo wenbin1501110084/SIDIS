@@ -39,14 +39,14 @@ const double bmax2 = 0.25;//GeV^-2
 const double Q0 = 1.5491933384829668;//GeV
 const double g1 = 0.212;
 const double g2 = 0.84;
-const double rootsnn = 5020.;// GeV
-const double Y1max = 4.4;
-const double Y1min = 1.5;
-const double Y2max = 4.4;
-const double Y2min = 1.5;
+const double rootsnn = 200.;// GeV
+const double Y1max = 4.0;
+const double Y1min = 2.6;
+const double Y2max = 4.0;
+const double Y2min = 2.6;
 const double Rcut = 0.4;
 const int num_threads = 10;
-const long long int sample_points = 2000000;
+const long long int sample_points = 1000000;
 
 LHAPDF::PDF* FF;
 LHAPDF::PDF* pdf;
@@ -173,7 +173,7 @@ int zh_kp2_b_integrated(const int *ndim, const cubareal *x, const int *ncomp, cu
     double z2 = x[1] * 0.9 + 0.05;
     double p1mag = x[2] * (helper->p1magmax - helper->p1magmin) + helper->p1magmin;
     double thetap1 = x[3] * 2. * M_PI;
-    double pt2maxtep = helper->p2magmax;// std::min(helper->p2magmax, p1mag);
+    double pt2maxtep = std::min(helper->p2magmax, p1mag);
     double p2mag = x[4] * (pt2maxtep - helper->p2magmin) + helper->p2magmin;
     double y1 = x[5] * (helper->y1max - helper->y1min) + helper->y1min;
     double y2 = x[6] * (helper->y2max - helper->y2min) + helper->y2min;
@@ -220,10 +220,10 @@ int zh_kp2_b_integrated(const int *ndim, const cubareal *x, const int *ncomp, cu
     double kTxdiff = kpmag*cos(thetakp) - qTx;
     double kTydiff = kpmag*sin(thetakp) - qTy;
     double kminuskp_mag = sqrt(pow(kTxdiff, 2) + pow(kTydiff, 2));
-    double xq = std::max(kT1, kT2) * (exp(y1) + exp(y2))/rootsnn;
-    double xg = std::max(kT1, kT2) * (exp(-y1)  + exp(-y2))/rootsnn;
-    //double xq = (kT1 * exp(y1) + kT2 * exp(y2))/rootsnn;
-    //double xg = (kT1 * exp(-y1) + kT2 * exp(-y2))/rootsnn;
+    //double xq = std::max(kT1, kT2) * (exp(y1) + exp(y2))/rootsnn;
+    //double xg = std::max(kT1, kT2) * (exp(-y1)  + exp(-y2))/rootsnn;
+    double xq = (kT1 * exp(y1) + kT2 * exp(y2))/rootsnn;
+    double xg = (kT1 * exp(-y1) + kT2 * exp(-y2))/rootsnn;
     if (xq > 1.0 || xg > 1.) {
         f[0] = 0.0;
         f[1] = 0.0;
@@ -240,7 +240,7 @@ int zh_kp2_b_integrated(const int *ndim, const cubareal *x, const int *ncomp, cu
     //double Q2 = PTtemp; 
     double PTtemp2 = pow(zm1 * kTx1 - (1.-zm1) * kTx2, 2.) + pow(zm1 * kTy1 - (1.-zm1) * kTy2, 2.);
     double PT2 = sqrt(PTtemp2);
-    
+    double scale_sudakov = PTtemp; 
     double rapidity = log(0.01/xg);
     if (rapidity< 0.0) rapidity = 0.0;
     int y_index = int(rapidity/Y_step);
@@ -326,7 +326,7 @@ int zh_kp2_b_integrated(const int *ndim, const cubareal *x, const int *ncomp, cu
         inter_FadjVt =  ratio * inter_FadjVt;
     }
     double prefactor = p1mag * p2mag * kpmag /z1/z1/z2/z2/4./M_PI/M_PI;
-    double alpha_s = pdf->alphasQ2(Q2);
+    double alpha_s = pdf->alphasQ2(scale_sudakov);
     double Hqg2qg1 = alpha_s /2./pow(PT1, 4.0) * (1. + (1.-zm1)*(1.-zm1)) * (1.-zm1); // one alpha_s is canceled by F
     double Hqg2qg2 = alpha_s /2./pow(PT2, 4.0) * (1. + zm1*zm1) * zm1; // one alpha_s is canceled by F
     double Hgg2qq = alpha_s /6. / pow(PT1, 4.) * zm1*(1.-zm1) * (zm1*zm1+(1.-zm1)*(1.-zm1)); // one alpha_s is canceled by F
@@ -334,12 +334,11 @@ int zh_kp2_b_integrated(const int *ndim, const cubareal *x, const int *ncomp, cu
     
     
     FBT ogata0 = FBT(0.0, 0, 1000); // Fourier Transform with Jnu, nu=0.0 and N=10
-    
-    double Subcoff = 0.5;
-    double Wq2qgK1 = ogata0.fbt(std::bind(Wq2qg, std::placeholders::_1, z1, z2, xq, Q2, Subcoff), kminuskp_mag);
-    double Wq2qgK2 = ogata0.fbt(std::bind(Wq2qg, std::placeholders::_1, z2, z1, xq, Q2, Subcoff), kminuskp_mag);
-    double Wg2qqK = ogata0.fbt(std::bind(Wg2qq, std::placeholders::_1, z1, z2, xq, Q2, Subcoff), kminuskp_mag);
-    double Wg2ggK = ogata0.fbt(std::bind(Wg2gg, std::placeholders::_1, z1, z2, xq, Q2, Subcoff), kminuskp_mag);
+    double Subcoff = 1.;
+    double Wq2qgK1 = ogata0.fbt(std::bind(Wq2qg, std::placeholders::_1, z1, z2, xq,scale_sudakov, Subcoff), kminuskp_mag);
+    double Wq2qgK2 = ogata0.fbt(std::bind(Wq2qg, std::placeholders::_1, z2, z1, xq,scale_sudakov, Subcoff), kminuskp_mag);
+    double Wg2qqK = ogata0.fbt(std::bind(Wg2qq, std::placeholders::_1, z1, z2, xq,scale_sudakov, Subcoff), kminuskp_mag);
+    double Wg2ggK = ogata0.fbt(std::bind(Wg2gg, std::placeholders::_1, z1, z2, xq,scale_sudakov, Subcoff), kminuskp_mag);
     
     double dsigmaqgqg_dDeltaphi = prefactor * Wq2qgK1 * ( (1.-zm1)*(1.-zm1)*inter_F1qgVt + inter_F2qgVt ) * Hqg2qg1 +
                                   prefactor * Wq2qgK2 * (zm1*zm1* inter_F1qgVt + inter_F2qgVt) * Hqg2qg2;
@@ -362,7 +361,7 @@ int zh_kp2_b_integrated(const int *ndim, const cubareal *x, const int *ncomp, cu
     }
     f[0] = (dsigmaqgqg_dDeltaphi + dsigmagggg_dDeltaphi + dsigmaggqq_dDeltaphi) * total_volume;
     
-
+/*
     Subcoff = 1.0;
     Wq2qgK1 = ogata0.fbt(std::bind(Wq2qg, std::placeholders::_1, z1, z2, xq, Q2, Subcoff), kminuskp_mag);
     Wq2qgK2 = ogata0.fbt(std::bind(Wq2qg, std::placeholders::_1, z2, z1, xq, Q2, Subcoff), kminuskp_mag);
@@ -416,7 +415,9 @@ int zh_kp2_b_integrated(const int *ndim, const cubareal *x, const int *ncomp, cu
         dsigmagggg_dDeltaphi = 0.0;
     }
     f[2] = (dsigmaqgqg_dDeltaphi + dsigmagggg_dDeltaphi + dsigmaggqq_dDeltaphi) * total_volume;
-    
+     */
+    f[1] = 0.;   
+    f[2] = 0.;
     return 0;
 }
 
@@ -550,7 +551,7 @@ int main(int argc, char* argv[])
     params.kpmagmax    = 100.0;// GeV/c
      
     // Open the input file
-    std::ifstream inputFile("Paul_table/Regularged_FT_large_Nuleus_MV_Paul");
+    std::ifstream inputFile("Paul_table/Regularged_FT_proton_MV_Paul");
     if (!inputFile.is_open()) {
         std::cerr << "Error opening file." << std::endl;
         return 1;
@@ -594,7 +595,7 @@ int main(int argc, char* argv[])
     //cubareal error2[ncomp2]; /* error estimates */
     //cubareal prob2[ncomp2]; /* CHI^2 probabilities */
     std::stringstream filename;
-    filename << "dSigma_dDeltaPhi_dihadron_" << startid << "_" << endid << "_" <<  stage 
+    filename << "dSigma_dDeltaPhi_dihadron_Phadron" << startid << "_" << endid << "_" <<  stage 
              << "_"<< P1magmin << "_" << P1magmax << "_" << P2magmin << "_" << P2magmax <<".txt";
     ofstream realA(filename.str());
     
@@ -651,10 +652,10 @@ int main(int argc, char* argv[])
     }
     }
     if (stage == 2) {
-    detal_theta = 2.0; //params.Delta_phi;
-    length = 60;
+    detal_theta = M_PI/2.; //params.Delta_phi;
+    length = 59;
     detal_theta_step = (M_PI - detal_theta) / length;
-    for (int itheta=1+ startid; itheta<endid +1; itheta++) {
+    for (int itheta=startid; itheta<endid; itheta++) {
         params.Delta_phi = itheta * 1. * detal_theta_step + detal_theta; 
         realA << params.Delta_phi << "  ";
                 /* Call the integrator */
