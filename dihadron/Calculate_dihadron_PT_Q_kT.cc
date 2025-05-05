@@ -46,7 +46,7 @@ const double Y2max = 5.6;
 const double Y2min = 3.2;
 const double Rcut = 0.4;
 const int num_threads = 10;
-const long long int sample_points = 50000;
+const long long int sample_points = 100000;
 
 LHAPDF::PDF* FF;
 LHAPDF::PDF* pdf;
@@ -169,21 +169,20 @@ double Wg2gg(double bpmag, double z1, double z2, double xq, double Q2, double Su
 
 int zh_kp2_b_integrated(const int *ndim, const cubareal *x, const int *ncomp, cubareal *f, void *userdata){
     PARAMETERS *helper = (PARAMETERS*)userdata;
-    //double z1 = x[0] * 0.9 + 0.05;
-    //double z2 = x[1] * 0.9 + 0.05;
-    double p1mag =  helper->p1magmin;
-    double thetap1 = x[2] * 2. * M_PI;
-    //double pt2maxtep = std::min(helper->p2magmax, p1mag);
-    double p2mag =  helper->p2magmin;
-    double y1 = x[3] * (helper->y1max - helper->y1min) + helper->y1min;
-    double y2 = x[4] * (helper->y2max - helper->y2min) + helper->y2min;
-    double kpmag = x[5] * helper->kpmagmax;
-    double thetakp = x[6] * 2. * M_PI;
-    double xgd1 = p1mag *exp(y1)/rootsnn / (1. - p2mag*exp(y2)/rootsnn);
-    double z1 = x[0] * (1.-xgd1) + xgd1;
+    double z1 = x[0] * 0.9 + 0.05;
+    double z2 = x[1] * 0.9 + 0.05;
+    double p1mag = x[2] * (helper->p1magmax - helper->p1magmin) + helper->p1magmin;
+    double thetap1 = x[3] * 2. * M_PI;
+    double pt2maxtep = std::min(helper->p2magmax, p1mag);
+    double p2mag = x[4] * (pt2maxtep - helper->p2magmin) + helper->p2magmin;
+    double y1 = x[5] * (helper->y1max - helper->y1min) + helper->y1min;
+    double y2 = x[6] * (helper->y2max - helper->y2min) + helper->y2min;
+    double kpmag = x[7] * helper->kpmagmax;
+    double thetakp = x[8] * 2. * M_PI;
+    //double xgd1 = p1mag *exp(y1)/rootsnn / (1. - p2mag*exp(y2)/rootsnn);
+    /*double z1 = x[0] * (1.-xgd1) + xgd1;
     double xgd2 =  p2mag *exp(y2)/rootsnn / (1. - p1mag/z1*exp(y1)/rootsnn);
     double z2 = x[1] * (1.-xgd2) + xgd2;
-    /*
     if (z1 < 0.05 || z1 > 0.95 || z2 <0.05 || z2 >0.95) {
         f[0] = 0.0;
         f[1] = 0.0;
@@ -205,7 +204,8 @@ int zh_kp2_b_integrated(const int *ndim, const cubareal *x, const int *ncomp, cu
     }
     */
     double thetap2 = thetap1 - helper->Delta_phi;
-    double total_volume = (helper->y1max - helper->y1min) * (helper->y2max - helper->y2min) *  2. * M_PI* 2. * M_PI *  helper->kpmagmax *(1.-xgd1) * (1.-xgd2);
+    double total_volume = (helper->y1max - helper->y1min) * (helper->y2max - helper->y2min) * (helper->p1magmax - helper->p1magmin) *
+                          (pt2maxtep - helper->p2magmin) *  2. * M_PI* 2. * M_PI *  helper->kpmagmax;// *(1.-xgd1) * (1.-xgd2);;
     double kT1 = p1mag/z1;
     double kTx1 = kT1 * cos(thetap1); 
     double kTy1 = kT1 * sin(thetap1); 
@@ -230,6 +230,7 @@ int zh_kp2_b_integrated(const int *ndim, const cubareal *x, const int *ncomp, cu
         f[2] = 0.0;
         f[3] = 0.0;
         f[4] = 0.0;
+        f[5] = 0.0;
         return 0;
     }
 
@@ -336,9 +337,9 @@ int zh_kp2_b_integrated(const int *ndim, const cubareal *x, const int *ncomp, cu
     double Hgg2gg = 2.*alpha_s / pow(PT1, 4.) *(zm1*zm1 + (1.-zm1) * (1.-zm1) + zm1*zm1 * (1.-zm1)*(1.-zm1)); // one alpha_s is canceled by F
     
     
-    FBT ogata0 = FBT(0.0, 0, 200); // Fourier Transform with Jnu, nu=0.0 and N=10
+    FBT ogata0 = FBT(0.0, 0, 1000); // Fourier Transform with Jnu, nu=0.0 and N=10
     double scale_sudakov = std::max(PTtemp, Q2); 
-    double Subcoff = 1.1;
+    double Subcoff = 1.;
     double Wq2qgK1 = ogata0.fbt(std::bind(Wq2qg, std::placeholders::_1, z1, z2, xq,scale_sudakov, Subcoff), kminuskp_mag);
     double Wq2qgK2 = ogata0.fbt(std::bind(Wq2qg, std::placeholders::_1, z2, z1, xq,scale_sudakov, Subcoff), kminuskp_mag);
     double Wg2qqK = ogata0.fbt(std::bind(Wg2qq, std::placeholders::_1, z1, z2, xq,scale_sudakov, Subcoff), kminuskp_mag);
@@ -364,10 +365,66 @@ int zh_kp2_b_integrated(const int *ndim, const cubareal *x, const int *ncomp, cu
         dsigmagggg_dDeltaphi = 0.0;
     }
     f[0] = (dsigmaqgqg_dDeltaphi + dsigmagggg_dDeltaphi + dsigmaggqq_dDeltaphi) * total_volume;
-    f[1] = (dsigmaqgqg_dDeltaphi + dsigmagggg_dDeltaphi + dsigmaggqq_dDeltaphi) * total_volume * xg;   
-    f[2] = (dsigmaqgqg_dDeltaphi + dsigmagggg_dDeltaphi + dsigmaggqq_dDeltaphi) * total_volume * sqrt(qT2);
-    f[3] = (dsigmaqgqg_dDeltaphi + dsigmagggg_dDeltaphi + dsigmaggqq_dDeltaphi) * total_volume * sqrt(PTtemp)/Qsused;
-    f[4] = (dsigmaqgqg_dDeltaphi + dsigmagggg_dDeltaphi + dsigmaggqq_dDeltaphi) * total_volume * sqrt(qT2)/Qsused;
+    f[1] = (dsigmaqgqg_dDeltaphi + dsigmagggg_dDeltaphi + dsigmaggqq_dDeltaphi) * total_volume * PTtemp;   
+    f[2] = (dsigmaqgqg_dDeltaphi + dsigmagggg_dDeltaphi + dsigmaggqq_dDeltaphi) * total_volume * qT2;
+    f[3] = (dsigmaqgqg_dDeltaphi + dsigmagggg_dDeltaphi + dsigmaggqq_dDeltaphi) * total_volume * PTtemp/Qsused / Qsused;
+    f[4] = (dsigmaqgqg_dDeltaphi + dsigmagggg_dDeltaphi + dsigmaggqq_dDeltaphi) * total_volume * Qsused * Qsused;
+    f[5] = (dsigmaqgqg_dDeltaphi + dsigmagggg_dDeltaphi + dsigmaggqq_dDeltaphi) * total_volume * qT2/Qsused /Qsused;
+/*
+    Subcoff = 1.0;
+    Wq2qgK1 = ogata0.fbt(std::bind(Wq2qg, std::placeholders::_1, z1, z2, xq, Q2, Subcoff), kminuskp_mag);
+    Wq2qgK2 = ogata0.fbt(std::bind(Wq2qg, std::placeholders::_1, z2, z1, xq, Q2, Subcoff), kminuskp_mag);
+    Wg2qqK = ogata0.fbt(std::bind(Wg2qq, std::placeholders::_1, z1, z2, xq, Q2, Subcoff), kminuskp_mag);
+    Wg2ggK = ogata0.fbt(std::bind(Wg2gg, std::placeholders::_1, z1, z2, xq, Q2, Subcoff), kminuskp_mag);
+    
+    dsigmaqgqg_dDeltaphi = prefactor * Wq2qgK1 * ( (1.-zm1)*(1.-zm1)*inter_F1qgVt + inter_F2qgVt ) * Hqg2qg1 +
+                                  prefactor * Wq2qgK2 * (zm1*zm1* inter_F1qgVt + inter_F2qgVt) * Hqg2qg2;
+                                  
+    dsigmaggqq_dDeltaphi = prefactor * 2.* Wg2qqK * (inter_F1ggVt - 2.*zm1*(1.-zm1)* inter_FadjVt) * Hgg2qq;
+    
+    dsigmagggg_dDeltaphi = prefactor * Wg2ggK * (inter_F1ggVt - 2.*zm1*(1.-zm1) * inter_FadjVt + inter_F3ggVt) * Hgg2gg;
+    
+   
+    if (dsigmaqgqg_dDeltaphi < 0.0) {
+        dsigmaqgqg_dDeltaphi = 0.0;
+    }
+    
+    if (dsigmaggqq_dDeltaphi < 0.0) {
+        dsigmaggqq_dDeltaphi = 0.0;
+    }
+    
+    if (dsigmagggg_dDeltaphi < 0.0) {
+        dsigmagggg_dDeltaphi = 0.0;
+    }
+    f[1] = (dsigmaqgqg_dDeltaphi + dsigmagggg_dDeltaphi + dsigmaggqq_dDeltaphi) * total_volume;
+    
+    Subcoff = 2.0;
+    Wq2qgK1 = ogata0.fbt(std::bind(Wq2qg, std::placeholders::_1, z1, z2, xq, Q2, Subcoff), kminuskp_mag);
+    Wq2qgK2 = ogata0.fbt(std::bind(Wq2qg, std::placeholders::_1, z2, z1, xq, Q2, Subcoff), kminuskp_mag);
+    Wg2qqK = ogata0.fbt(std::bind(Wg2qq, std::placeholders::_1, z1, z2, xq, Q2, Subcoff), kminuskp_mag);
+    Wg2ggK = ogata0.fbt(std::bind(Wg2gg, std::placeholders::_1, z1, z2, xq, Q2, Subcoff), kminuskp_mag);
+    
+    dsigmaqgqg_dDeltaphi = prefactor * Wq2qgK1 * ( (1.-zm1)*(1.-zm1)*inter_F1qgVt + inter_F2qgVt ) * Hqg2qg1 +
+                                  prefactor * Wq2qgK2 * (zm1*zm1* inter_F1qgVt + inter_F2qgVt) * Hqg2qg2;
+                                  
+    dsigmaggqq_dDeltaphi = prefactor * 2.* Wg2qqK * (inter_F1ggVt - 2.*zm1*(1.-zm1)* inter_FadjVt) * Hgg2qq;
+    
+    dsigmagggg_dDeltaphi = prefactor * Wg2ggK * (inter_F1ggVt - 2.*zm1*(1.-zm1) * inter_FadjVt + inter_F3ggVt) * Hgg2gg;
+    
+   
+    if (dsigmaqgqg_dDeltaphi < 0.0) {
+        dsigmaqgqg_dDeltaphi = 0.0;
+    }
+    
+    if (dsigmaggqq_dDeltaphi < 0.0) {
+        dsigmaggqq_dDeltaphi = 0.0;
+    }
+    
+    if (dsigmagggg_dDeltaphi < 0.0) {
+        dsigmagggg_dDeltaphi = 0.0;
+    }
+    f[2] = (dsigmaqgqg_dDeltaphi + dsigmagggg_dDeltaphi + dsigmaggqq_dDeltaphi) * total_volume;
+     */
     return 0;
 }
 
@@ -482,16 +539,22 @@ int main(int argc, char* argv[])
     omp_set_num_threads(num_threads);
     
     PARAMETERS params;
-    int stage = std::stoi(argv[1]);
-    int startid = std::stoi(argv[2]);
-    int endid = std::stoi(argv[3]);
-    int startid2 = std::stoi(argv[4]);
-    int endid2 = std::stoi(argv[5]);
+    int startid = std::stoi(argv[1]);
+    int endid = std::stoi(argv[2]);
+    int stage = std::stoi(argv[3]);
+    double P1magmin = std::stod(argv[4]);
+    double P1magmax = std::stod(argv[5]);
+    double P2magmin = std::stod(argv[6]);
+    double P2magmax = std::stod(argv[7]); 
                           
     params.y1max    = Y1max;
     params.y1min    = Y1min;
     params.y2max    = Y2max;
     params.y2min    = Y2min;
+    params.p1magmax    = P1magmax;
+    params.p1magmin    = P1magmin;
+    params.p2magmin    = P2magmin;
+    params.p2magmax    = P2magmax;
     params.kpmagmax    = 90.0;// GeV/c
      
     // Open the input file
@@ -554,8 +617,8 @@ int main(int argc, char* argv[])
     //cubareal error2[ncomp2]; /* error estimates */
     //cubareal prob2[ncomp2]; /* CHI^2 probabilities */
     std::stringstream filename;
-    filename << "Xg_kT_dihadron_with_Sub_FBT_MV_" << "_"<< stage << "_" << startid<< "_" << endid 
-             << "_" << startid2 << "_" << endid2 << ".txt";
+    filename << "dSigma_dDeltaPhi_dihadron_hadron_PT_" << startid << "_" << endid << "_" <<  stage 
+             << "_"<< P1magmin << "_" << P1magmax << "_" << P2magmin << "_" << P2magmax <<".txt";
     ofstream realA(filename.str());
     
     LHAPDF::initPDFSet("CT18NNLO");
@@ -571,169 +634,63 @@ int main(int argc, char* argv[])
    Trigger[0] = 1.0;
    Trigger[0] = Trigger[0] +1;
     /* Define the integration parameters */
-    const int ndim = 7; /* number of dimensions */
-    const int ncomp = 5; /* number of components */
+    const int ndim = 9; /* number of dimensions */
+    const int ncomp = 6; /* number of components */
     /* Allocate memory for the results */
     cubareal integral[ncomp]; /* integral estimates */
     cubareal error[ncomp]; /* error estimates */
     cubareal prob[ncomp]; /* CHI^2 probabilities */
     
-    //double detal_theta; double detal_theta_step;
-    realA << "# kTgamma  PhT  dSigma_dDeltaPhi  xg*dSigma_dDeltaPhi  PT*dSigma_dDeltaPhi PT/Qs*dSigma_dDeltaPhi kT/Qs*dSigma_dDeltaPhi";
+    int length;
+    double detal_theta; double detal_theta_step;
+    if (stage == 0) {
+    length = 6;
+    realA << "# Delta_phi   Wk  sigmahat  Ntidle  dSigma_dDeltaPhi";
     realA << endl;
-    params.Delta_phi = M_PI;
-    double detal_kTgmin; double detal_PhTmin;
-    if (stage == 11) {
-    detal_kTgmin = 0.2; detal_PhTmin = 0.2;
-    for (int ikTgmin=startid ; ikTgmin<endid; ikTgmin++) {
-    for (int iPhTmin=startid2 ; iPhTmin<endid2; iPhTmin++) {
-        params.p1magmin    = ikTgmin * 1. * detal_kTgmin + 1.;
-        params.p2magmin    = iPhTmin * 1. * detal_PhTmin;
-        realA << params.p1magmin << "  " << params.p2magmin << "  ";
+    
+    detal_theta_step = 0.1;
+    for (int itheta=startid ; itheta<endid; itheta++) {
+        params.Delta_phi = itheta * 1. * detal_theta_step; 
+        realA << params.Delta_phi << "  ";
                 /* Call the integrator */
                 llVegas(ndim, ncomp, zh_kp2_b_integrated, &params, nvec, epsrel, epsabs, flags, seed, mineval, maxeval, nstart, 
                         nincrease, nbatch, gridno, NULL, NULL, &neval, &fail, integral, error, prob);
-                realA << integral[0] <<  "  " << integral[1] << "  " << integral[2] << "  " << integral[3] << "  " << integral[4];
-        realA << endl;
+realA << integral[0] <<  "  " << integral[1] <<  "  " << integral[2] <<  "  " <<  "  " << integral[3]
+                      << "   " << integral[4] << "  " << integral[5];        
+realA << endl;
     }
     }
-    }
-    
-    if (stage == 12) {
-    detal_kTgmin = 0.2; detal_PhTmin = 0.5;
-    for (int ikTgmin=startid ; ikTgmin<endid; ikTgmin++) {
-    for (int iPhTmin=startid2; iPhTmin<endid2; iPhTmin++) {
-        params.p1magmin    = ikTgmin * 1. * detal_kTgmin + 1.;
-        params.p2magmin    = iPhTmin * 1. * detal_PhTmin + 5.;
-        realA << params.p1magmin << "  " << params.p2magmin << "  ";
+    if(stage ==1) {
+    detal_theta =  0.5;//params.Delta_phi;
+    length = 15;
+    detal_theta_step = 0.05;
+    for (int itheta= startid+1; itheta<endid +1; itheta++) {
+        
+        params.Delta_phi = itheta * 1. * detal_theta_step + detal_theta; 
+        realA << params.Delta_phi << "  ";
                 /* Call the integrator */
                 llVegas(ndim, ncomp, zh_kp2_b_integrated, &params, nvec, epsrel, epsabs, flags, seed, mineval, maxeval, nstart, 
                         nincrease, nbatch, gridno, NULL, NULL, &neval, &fail, integral, error, prob);
-                realA << integral[0] <<  "  " << integral[1] << "  " << integral[2] << "  " << integral[3] << "  " << integral[4];
-        realA << endl;
+realA << integral[0] <<  "  " << integral[1] <<  "  " << integral[2] <<  "  " <<  "  " << integral[3]
+                      << "   " << integral[4] << "  " << integral[5];        
+realA << endl;
     }
     }
-    }
-    
-    if (stage == 13) {
-    detal_kTgmin = 0.2; detal_PhTmin = 1.0;
-    for (int ikTgmin=startid ; ikTgmin<endid; ikTgmin++) {
-    for (int iPhTmin=startid2; iPhTmin<endid2; iPhTmin++) {
-        params.p1magmin    = ikTgmin * 1. * detal_kTgmin + 1.0;
-        params.p2magmin    = iPhTmin * 1. * detal_PhTmin + 10.;
-        realA << params.p1magmin << "  " << params.p2magmin << "  ";
+    if (stage == 2) {
+    detal_theta = M_PI/2.; //params.Delta_phi;
+    length = 59;
+    detal_theta_step = (M_PI - detal_theta) / length;
+    for (int itheta=startid; itheta<endid; itheta++) {
+        params.Delta_phi = itheta * 1. * detal_theta_step + detal_theta; 
+        realA << params.Delta_phi << "  ";
                 /* Call the integrator */
                 llVegas(ndim, ncomp, zh_kp2_b_integrated, &params, nvec, epsrel, epsabs, flags, seed, mineval, maxeval, nstart, 
                         nincrease, nbatch, gridno, NULL, NULL, &neval, &fail, integral, error, prob);
-                realA << integral[0] <<  "  " << integral[1] << "  " << integral[2] << "  " << integral[3] << "  " << integral[4];
+                realA << integral[0] <<  "  " << integral[1] <<  "  " << integral[2] <<  "  " <<  "  " << integral[3]
+                      << "   " << integral[4] << "  " << integral[5];
         realA << endl;
     }
-    }
-    }
-    
-    
-    if (stage == 21) {
-    detal_kTgmin = 0.5; detal_PhTmin = 0.2;
-    for (int ikTgmin=startid ; ikTgmin<endid; ikTgmin++) {
-    for (int iPhTmin=startid2 ; iPhTmin<endid2; iPhTmin++) {
-        params.p1magmin    = ikTgmin * 1. * detal_kTgmin + 5.;
-        params.p2magmin    = iPhTmin * 1. * detal_PhTmin;
-        realA << params.p1magmin << "  " << params.p2magmin << "  ";
-                /* Call the integrator */
-                llVegas(ndim, ncomp, zh_kp2_b_integrated, &params, nvec, epsrel, epsabs, flags, seed, mineval, maxeval, nstart, 
-                        nincrease, nbatch, gridno, NULL, NULL, &neval, &fail, integral, error, prob);
-                realA << integral[0] <<  "  " << integral[1] << "  " << integral[2] << "  " << integral[3] << "  " << integral[4];
-
-        realA << endl;
-    }
-    }
-    }
-    
-    if (stage == 22) {
-    detal_kTgmin = 0.5; detal_PhTmin = 0.5;
-    for (int ikTgmin=startid ; ikTgmin<endid; ikTgmin++) {
-    for (int iPhTmin=startid2; iPhTmin<endid2; iPhTmin++) {
-        params.p1magmin    = ikTgmin * 1. * detal_kTgmin + 5.;
-        params.p2magmin    = iPhTmin * 1. * detal_PhTmin + 5.;
-        realA << params.p1magmin << "  " << params.p2magmin << "  ";
-                /* Call the integrator */
-                llVegas(ndim, ncomp, zh_kp2_b_integrated, &params, nvec, epsrel, epsabs, flags, seed, mineval, maxeval, nstart, 
-                        nincrease, nbatch, gridno, NULL, NULL, &neval, &fail, integral, error, prob);
-                realA << integral[0] <<  "  " << integral[1] << "  " << integral[2] << "  " << integral[3] << "  " << integral[4];
-
-        realA << endl;
-    }
-    }
-    }
-    
-    if (stage == 23) {
-    detal_kTgmin = 0.5; detal_PhTmin = 1.0;
-    for (int ikTgmin=startid ; ikTgmin<endid; ikTgmin++) {
-    for (int iPhTmin=startid2; iPhTmin<endid2; iPhTmin++) {
-        params.p1magmin    = ikTgmin * 1. * detal_kTgmin + 5.0;
-        params.p2magmin    = iPhTmin * 1. * detal_PhTmin + 10.;
-        realA << params.p1magmin << "  " << params.p2magmin << "  ";
-                /* Call the integrator */
-                llVegas(ndim, ncomp, zh_kp2_b_integrated, &params, nvec, epsrel, epsabs, flags, seed, mineval, maxeval, nstart, 
-                        nincrease, nbatch, gridno, NULL, NULL, &neval, &fail, integral, error, prob);
-                realA << integral[0] <<  "  " << integral[1] << "  " << integral[2]<< "  " << integral[3] << "  " << integral[4];
-
-        realA << endl;
-    }
-    }
-    }
-    
-    if (stage == 31) {
-    detal_kTgmin = 1.0; detal_PhTmin = 0.2;
-    for (int ikTgmin=startid ; ikTgmin<endid; ikTgmin++) {
-    for (int iPhTmin=startid2 ; iPhTmin<endid2; iPhTmin++) {
-        params.p1magmin    = ikTgmin * 1. * detal_kTgmin + 10.;
-        params.p2magmin    = iPhTmin * 1. * detal_PhTmin;
-        realA << params.p1magmin << "  " << params.p2magmin << "  ";
-                /* Call the integrator */
-                llVegas(ndim, ncomp, zh_kp2_b_integrated, &params, nvec, epsrel, epsabs, flags, seed, mineval, maxeval, nstart, 
-                        nincrease, nbatch, gridno, NULL, NULL, &neval, &fail, integral, error, prob);
-                realA << integral[0] <<  "  " << integral[1] << "  " << integral[2] << "  " << integral[3] << "  " << integral[4];
-
-        realA << endl;
-    }
-    }
-    }
-    
-    if (stage == 32) {
-    detal_kTgmin = 1.0; detal_PhTmin = 0.5;
-    for (int ikTgmin=startid ; ikTgmin<endid; ikTgmin++) {
-    for (int iPhTmin=startid2; iPhTmin<endid2; iPhTmin++) {
-        params.p1magmin    = ikTgmin * 1. * detal_kTgmin + 10.;
-        params.p2magmin    = iPhTmin * 1. * detal_PhTmin + 5.;
-        realA << params.p1magmin << "  " << params.p2magmin << "  ";
-                /* Call the integrator */
-                llVegas(ndim, ncomp, zh_kp2_b_integrated, &params, nvec, epsrel, epsabs, flags, seed, mineval, maxeval, nstart, 
-                        nincrease, nbatch, gridno, NULL, NULL, &neval, &fail, integral, error, prob);
-                realA << integral[0] <<  "  " << integral[1] << "  " << integral[2] << "  " << integral[3] << "  " << integral[4];
-
-        realA << endl;
-    }
-    }
-    }
-    
-    if (stage == 33) {
-    detal_kTgmin = 1.0; detal_PhTmin = 1.0;
-    for (int ikTgmin=startid ; ikTgmin<endid; ikTgmin++) {
-    for (int iPhTmin=startid2; iPhTmin<endid2; iPhTmin++) {
-        params.p1magmin  = ikTgmin * 1. * detal_kTgmin + 10.0;
-        params.p2magmin    = iPhTmin * 1. * detal_PhTmin + 10.;
-        realA << params.p1magmin << "  " << params.p2magmin << "  ";
-                /* Call the integrator */
-                llVegas(ndim, ncomp, zh_kp2_b_integrated, &params, nvec, epsrel, epsabs, flags, seed, mineval, maxeval, nstart, 
-                        nincrease, nbatch, gridno, NULL, NULL, &neval, &fail, integral, error, prob);
-                realA << integral[0] <<  "  " << integral[1] << "  " << integral[2] << "  " << integral[3] << "  " << integral[4];
-
-        realA << endl;
-    }
-    }
-    }
-    
+    }   
     realA.close();
 }
 
